@@ -17,6 +17,12 @@ logger = setup_logger()
 
 def create_spec_file():
     """Create PyInstaller spec file."""
+    from pathlib import Path as PathLib
+    
+    # Check if icon exists
+    icon_path = PathLib(__file__).parent.parent / "resources" / "icons" / "app.ico"
+    icon_str = f"'{icon_path}'" if icon_path.exists() else "None"
+    
     spec_content = """# -*- mode: python ; coding: utf-8 -*-
 
 block_cipher = None
@@ -41,7 +47,7 @@ a = Analysis(
         'reportlab',
     ],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig={{}},
     runtime_hooks=[],
     excludes=[],
     win_no_prefer_redirects=False,
@@ -72,7 +78,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='resources/icons/app.ico' if Path('resources/icons/app.ico').exists() else None,
+    icon=""" + icon_str + """,
 )
 """
     

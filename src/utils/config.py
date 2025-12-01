@@ -1,8 +1,21 @@
 """Configuration management for SummarixAI."""
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
+
+
+def get_base_path() -> Path:
+    """Get the base path, handling both development and PyInstaller executable modes."""
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller executable
+        # PyInstaller sets _MEIPASS to the temp folder where it extracts files
+        base_path = Path(sys._MEIPASS)
+    else:
+        # Running as script
+        base_path = Path(__file__).parent.parent.parent
+    return base_path
 
 
 class Config:
@@ -12,8 +25,8 @@ class Config:
     APP_NAME = "SummarixAI"
     APP_VERSION = "1.0.0"
     
-    # Paths
-    BASE_DIR = Path(__file__).parent.parent.parent
+    # Paths - handle both development and PyInstaller executable
+    BASE_DIR = get_base_path()
     RESOURCES_DIR = BASE_DIR / "resources"
     MODELS_DIR = RESOURCES_DIR / "models"
     ICONS_DIR = RESOURCES_DIR / "icons"
