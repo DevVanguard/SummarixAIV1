@@ -1,0 +1,2 @@
+"""GUI modules for SummarixAI."""
+
