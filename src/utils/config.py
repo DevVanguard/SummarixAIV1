@@ -35,18 +35,26 @@ class Config:
     MODEL_NAME = "t5-small"
     MODEL_CACHE_DIR = MODELS_DIR / MODEL_NAME
     
-    # Summarization settings
+    # Summarization settings - improved defaults for better quality
     MAX_INPUT_TOKENS = 512
-    MAX_OUTPUT_TOKENS = 150
+    MAX_OUTPUT_TOKENS = 250  # Increased from 150 for more comprehensive summaries
     MIN_SUMMARY_LENGTH = 50
+    
+    # Summary length presets (as ratio of input)
+    SUMMARY_LENGTH_SHORT = 0.15   # 15% of original
+    SUMMARY_LENGTH_MEDIUM = 0.25  # 25% of original
+    SUMMARY_LENGTH_LONG = 0.35    # 35% of original
     
     # Extractive summarization
     EXTRACTIVE_RATIO = 0.3  # 30% of original text
     
-    # Abstractive summarization
-    TEMPERATURE = 0.7
-    NUM_BEAMS = 4
-    DO_SAMPLE = False
+    # Abstractive summarization - tuned for better quality
+    TEMPERATURE = 0.7  # Balanced for natural output
+    NUM_BEAMS = 5  # Good balance between quality and speed
+    DO_SAMPLE = False  # Use deterministic beam search
+    LENGTH_PENALTY = 1.2  # Default penalty (adjusted per preset)
+    REPETITION_PENALTY = 1.3  # Reduce repetition without being too aggressive
+    NO_REPEAT_NGRAM_SIZE = 3  # Avoid 3-gram repetition
     
     @classmethod
     def ensure_directories(cls) -> None:
@@ -64,4 +72,65 @@ class Config:
         """Check if running in offline mode (no internet)."""
         # Always return True for offline-first application
         return True
+    
+    @classmethod
+    def get_output_length_for_preset(cls, preset: str) -> int:
+        """
+        Get max output tokens for a given preset.
+        Adjusted for better quality summaries.
+        
+        Args:
+            preset: 'short', 'medium', or 'long'
+            
+        Returns:
+            Maximum output tokens
+        """
+        preset = preset.lower()
+        if preset == 'short':
+            return 120  # Short: 1 sentence + 2-3 key points (~100-120 tokens)
+        elif preset == 'long':
+            return 350  # Long: Executive summary with details (~300-350 tokens)
+        else:  # medium (default)
+            return 250  # Medium: 6-10 sentences or 4-8 bullets (~200-250 tokens)
+    
+    @classmethod
+    def get_min_length_for_preset(cls, preset: str) -> int:
+        """
+        Get minimum output tokens for a given preset.
+        Adjusted to ensure quality summaries.
+        
+        Args:
+            preset: 'short', 'medium', or 'long'
+            
+        Returns:
+            Minimum output tokens
+        """
+        preset = preset.lower()
+        if preset == 'short':
+            return 30  # Short: At least enough for 1 sentence + 2-3 points
+        elif preset == 'long':
+            return 100  # Long: Enough for structured executive summary
+        else:  # medium (default)
+            return 60  # Medium: Enough for 6-10 sentences or 4-8 bullets
+    
+    @classmethod
+    def get_length_penalty_for_preset(cls, preset: str) -> float:
+        """
+        Get length penalty for a given preset.
+        Lower penalty encourages shorter summaries, higher encourages longer.
+        Adjusted for better control over output length.
+        
+        Args:
+            preset: 'short', 'medium', or 'long'
+            
+        Returns:
+            Length penalty value
+        """
+        preset = preset.lower()
+        if preset == 'short':
+            return 0.6  # Lower penalty to keep it concise
+        elif preset == 'long':
+            return 1.4  # Higher penalty to encourage comprehensive summaries
+        else:  # medium (default)
+            return 1.0  # Balanced penalty for medium summaries
 

@@ -1,15 +1,21 @@
-"""Main application window for SummarixAI."""
+"""
+Main application window for SummarixAI.
+This is the central hub of the application - it coordinates all the UI components
+and handles the summarization workflow from file selection to result display.
+"""
 
 import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+import time
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal, Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -29,7 +35,11 @@ logger = setup_logger()
 
 
 class SummarizationWorker(QThread):
-    """Worker thread for summarization processing."""
+    """
+    Worker thread for summarization processing.
+    This runs in a separate thread so the UI stays responsive during long operations.
+    We use signals to communicate progress and results back to the main thread.
+    """
     
     progress = pyqtSignal(int, str)
     finished = pyqtSignal(str)
@@ -40,59 +50,200 @@ class SummarizationWorker(QThread):
         file_path: Path,
         mode: SummarizationMode,
         extractive_summarizer: TextRankSummarizer,
-        abstractive_summarizer: Optional[AbstractiveSummarizer] = None
+        abstractive_summarizer: Optional[AbstractiveSummarizer] = None,
+        mode_selector = None
     ):
-        """Initialize worker thread."""
+        """
+        Initialize worker thread with all necessary components.
+        
+        Args:
+            file_path: Path to the PDF file to summarize
+            mode: Which summarization mode to use (extractive or abstractive)
+            extractive_summarizer: The extractive summarizer instance
+            abstractive_summarizer: The abstractive summarizer instance (optional)
+            mode_selector: Reference to mode selector widget to get length preset
+        """
         super().__init__()
         self.file_path = file_path
         self.mode = mode
         self.extractive_summarizer = extractive_summarizer
         self.abstractive_summarizer = abstractive_summarizer
+        self.mode_selector = mode_selector
     
     def run(self):
-        """Run the summarization process."""
+        """
+        Main worker thread execution.
+        This method runs in a separate thread and performs all the heavy lifting.
+        We emit signals to update the UI thread with progress and results.
+        """
         try:
-            self.progress.emit(10, "Loading PDF...")
+            self.progress.emit(10, "Loading PDF file...")
             
-            # Process PDF
-            with PDFProcessor() as processor:
-                if not processor.load_pdf(self.file_path):
-                    self.error.emit("Failed to load PDF file")
-                    return
-                
-                self.progress.emit(30, "Extracting text from PDF...")
-                text = processor.extract_text()
-                
-                if not text or not text.strip():
-                    self.error.emit("No text found in PDF")
-                    return
-                
-                self.progress.emit(50, "Generating summary...")
-                
-                # Generate summary based on mode
-                if self.mode == SummarizationMode.EXTRACTIVE:
-                    summary = self.extractive_summarizer.summarize(text)
-                else:
-                    # Abstractive mode
-                    if not self.abstractive_summarizer:
-                        self.error.emit("Abstractive summarizer not initialized")
+            # Initialize text variable outside try block so it's accessible for summarization
+            text = None
+            
+            # Open and process the PDF file
+            # Using context manager ensures proper cleanup
+            try:
+                with PDFProcessor() as processor:
+                    if not processor.load_pdf(self.file_path):
+                        self.error.emit(
+                            f"Failed to load PDF file.\n\n"
+                            f"File: {self.file_path.name}\n"
+                            f"Please ensure the file is a valid PDF and not corrupted."
+                        )
                         return
                     
-                    if not self.abstractive_summarizer.is_ready():
-                        self.progress.emit(60, "Loading model...")
-                        if not self.abstractive_summarizer.initialize():
-                            self.error.emit("Failed to load abstractive model")
-                            return
+                    self.progress.emit(30, "Extracting text from PDF...")
                     
-                    self.progress.emit(70, "Generating abstractive summary...")
-                    summary = self.abstractive_summarizer.summarize(text)
+                    # Extract all text from the PDF
+                    try:
+                        text = processor.extract_text()
+                    except Exception as e:
+                        logger.error(f"Text extraction failed: {str(e)}", exc_info=True)
+                        self.error.emit(
+                            f"Failed to extract text from PDF:\n{str(e)}\n\n"
+                            f"The PDF might be image-based or corrupted."
+                        )
+                        return
+                    
+                    # Validate that we got some text
+                    if not text or not text.strip():
+                        self.error.emit(
+                            "No text found in PDF.\n\n"
+                            "This PDF might be:\n"
+                            "- Image-based (scanned document)\n"
+                            "- Empty or corrupted\n"
+                            "- Password protected"
+                        )
+                        return
+                    
+                    # Check text length - warn if very short
+                    text_length = len(text.strip())
+                    if text_length < 100:
+                        logger.warning(f"Very short text extracted: {text_length} characters")
+                    
+            except Exception as e:
+                # Catch any errors during PDF processing
+                logger.error(f"PDF processing error: {str(e)}", exc_info=True)
+                self.error.emit(f"Error processing PDF file:\n{str(e)}")
+                return
+            
+            # If we got here, PDF processing was successful
+            # Now proceed with summarization (this code is outside the exception handler)
+            if text is None or not text.strip():
+                self.error.emit("No text available for summarization")
+                return
+            
+            self.progress.emit(50, "Generating summary...")
+            
+            # Generate summary based on selected mode
+            if self.mode == SummarizationMode.EXTRACTIVE:
+                # Extractive mode - fast, no model needed
+                try:
+                    # Quick check of document structure
+                    sentences = self.extractive_summarizer.preprocessor.tokenize_sentences(text)
+                    if not sentences:
+                        self.error.emit("No sentences found in document")
+                        return
+                    
+                    # Provide progress updates during processing
+                    self.progress.emit(60, f"Analyzing {len(sentences)} sentences...")
+                    
+                    # The actual summarization can take time for large documents
+                    # TF-IDF vectorization and PageRank computation happen here
+                    summary = self.extractive_summarizer.summarize(text)
+                    
+                    if not summary or not summary.strip():
+                        self.error.emit("Extractive summarization produced empty result")
+                        return
+                    
+                    # Summary complete
+                    self.progress.emit(95, "Summary generated successfully")
+                    self.progress.emit(100, "Summary complete!")
+                    self.finished.emit(summary)
+                    
+                except Exception as e:
+                    logger.error(f"Extractive summarization failed: {str(e)}", exc_info=True)
+                    self.error.emit(f"Extractive summarization error: {str(e)}")
+                    return
+            else:
+                # Abstractive mode - requires model loading
+                if not self.abstractive_summarizer:
+                    self.error.emit("Abstractive summarizer not initialized")
+                    return
                 
-                self.progress.emit(100, "Summary complete!")
-                self.finished.emit(summary)
+                # Load model if not already loaded
+                if not self.abstractive_summarizer.is_ready():
+                    self.progress.emit(60, "Loading AI model (this may take a moment)...")
+                    try:
+                        if not self.abstractive_summarizer.initialize():
+                            self.error.emit("Failed to load abstractive model. Please check if models are downloaded.")
+                            return
+                    except Exception as e:
+                        logger.error(f"Model initialization failed: {str(e)}", exc_info=True)
+                        self.error.emit(f"Model loading error: {str(e)}")
+                        return
+                
+                # Get length preset from mode selector if available
+                max_output_tokens = Config.MAX_OUTPUT_TOKENS  # Default
+                min_output_tokens = Config.MIN_SUMMARY_LENGTH  # Default
+                length_penalty = Config.LENGTH_PENALTY  # Default
+                
+                if self.mode_selector:
+                    try:
+                        length_preset = self.mode_selector.get_length_preset()
+                        max_output_tokens = Config.get_output_length_for_preset(length_preset)
+                        min_output_tokens = Config.get_min_length_for_preset(length_preset)
+                        length_penalty = Config.get_length_penalty_for_preset(length_preset)
+                        logger.info(
+                            f"Using length preset: {length_preset} "
+                            f"(max: {max_output_tokens}, min: {min_output_tokens}, penalty: {length_penalty})"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to get length preset, using default: {str(e)}")
+                        max_output_tokens = Config.MAX_OUTPUT_TOKENS
+                        min_output_tokens = Config.MIN_SUMMARY_LENGTH
+                        length_penalty = Config.LENGTH_PENALTY
+                
+                # Generate abstractive summary with specified length and preset
+                try:
+                    self.progress.emit(70, "Generating abstractive summary with AI...")
+                    # Get preset for formatting
+                    preset = "medium"  # Default
+                    if self.mode_selector:
+                        try:
+                            preset = self.mode_selector.get_length_preset()
+                        except Exception:
+                            pass
+                    
+                    summary = self.abstractive_summarizer.summarize(
+                        text,
+                        max_length=max_output_tokens,
+                        min_length=min_output_tokens,
+                        length_penalty=length_penalty,
+                        preset=preset
+                    )
+                    if not summary or not summary.strip():
+                        self.error.emit("Abstractive summarization produced empty result")
+                        return
+                    
+                    # If we got here, summarization was successful
+                    self.progress.emit(100, "Summary complete!")
+                    self.finished.emit(summary)
+                    
+                except Exception as e:
+                    logger.error(f"Abstractive summarization failed: {str(e)}", exc_info=True)
+                    self.error.emit(f"Summary generation error: {str(e)}")
+                    return
                 
         except Exception as e:
-            logger.error(f"Error in summarization worker: {str(e)}")
-            self.error.emit(f"Error: {str(e)}")
+            # Catch-all for any unexpected errors
+            logger.error(f"Unexpected error in summarization worker: {str(e)}", exc_info=True)
+            self.error.emit(
+                f"An unexpected error occurred:\n{str(e)}\n\n"
+                f"Please check the logs for more details."
+            )
 
 
 class MainWindow(QMainWindow):
@@ -116,7 +267,10 @@ class MainWindow(QMainWindow):
         logger.info("Main window initialized")
     
     def _setup_ui(self):
-        """Set up the user interface."""
+        """
+        Set up the user interface following HCI principles.
+        Efficient space usage, clear visual hierarchy, proper spacing.
+        """
         self.setWindowTitle(f"{Config.APP_NAME} v{Config.APP_VERSION}")
         self.setMinimumSize(900, 700)
         
@@ -124,30 +278,35 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Main layout
+        # Main layout with efficient spacing
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)  # Reduced from 20 for better space efficiency
+        layout.setContentsMargins(16, 12, 16, 12)  # Tighter margins
         
         # File upload
         self.file_upload = FileUploadWidget()
         self.file_upload.file_selected.connect(self._on_file_selected)
+        self.file_upload.file_cleared.connect(self._on_file_cleared)
         layout.addWidget(self.file_upload)
         
         # Mode selector
         self.mode_selector = ModeSelectorWidget()
         layout.addWidget(self.mode_selector)
         
-        # Summarize button
-        self.summarize_button = QPushButton("Summarize")
-        self.summarize_button.setEnabled(False)
+        # Summarize button - compact and professional with professional icon
+        self.summarize_button = QPushButton("⚡ Summarize")
+        self.summarize_button.setEnabled(False)  # Disabled until file is selected
         self.summarize_button.clicked.connect(self._on_summarize)
+        self.summarize_button.setFixedHeight(40)  # Compact height
         self.summarize_button.setStyleSheet("""
             QPushButton {
-                font-size: 12pt;
+                font-size: 11pt;
                 font-weight: 600;
-                padding: 12px;
-                min-height: 40px;
+                padding: 10px 20px;
+                border-radius: 6px;
+            }
+            QPushButton:disabled {
+                opacity: 0.6;
             }
         """)
         layout.addWidget(self.summarize_button)
@@ -156,14 +315,25 @@ class MainWindow(QMainWindow):
         self.progress_indicator = ProgressIndicatorWidget()
         layout.addWidget(self.progress_indicator)
         
-        # Summary display
+        # Summary display - make it expandable to use available space
         self.summary_display = SummaryDisplayWidget()
-        layout.addWidget(self.summary_display)
+        layout.addWidget(self.summary_display, 1)  # Give it stretch factor to expand
         
         central_widget.setLayout(layout)
         
-        # Status bar
+        # Set size policy for better space utilization
+        self.summary_display.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
+        
+        # Status bar with enhanced styling
         self.statusBar().showMessage("Ready")
+        
+        # Timer for periodic updates of time and memory during processing
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self._update_progress_info)
+        self.update_timer.setInterval(500)  # Update every 500ms
     
     def _setup_menu(self):
         """Set up menu bar."""
@@ -196,55 +366,161 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(get_theme("dark"))
     
     def _on_file_selected(self, file_path: Path):
-        """Handle file selection."""
+        """
+        Handle file selection event.
+        Enables the summarize button, resets all fields, and updates status bar.
+        """
+        # Reset all fields when a new file is selected
+        self._reset_all_fields()
+        
         self.current_file = file_path
         self.summarize_button.setEnabled(True)
-        self.statusBar().showMessage(f"File selected: {file_path.name}")
+        self._update_status_bar(f"File selected: {file_path.name}")
+    
+    def _on_file_cleared(self):
+        """
+        Handle file cleared event.
+        Resets all fields, disables the summarize button, and clears any existing summary.
+        """
+        # Reset all fields when file is cleared
+        self._reset_all_fields()
+        
+        self.current_file = None
+        self.summarize_button.setEnabled(False)
+        self._update_status_bar("No file selected")
     
     def _on_open_file(self):
         """Handle open file menu action."""
         self.file_upload._browse_files()
     
     def _on_summarize(self):
-        """Handle summarize button click."""
+        """
+        Handle summarize button click.
+        Validates inputs and starts the summarization process in a worker thread.
+        """
+        # Validate that a file is selected
         if not self.current_file:
-            QMessageBox.warning(self, "No File", "Please select a PDF file first.")
+            QMessageBox.warning(
+                self,
+                "No File Selected",
+                "Please select a PDF file first.\n\nUse 'Browse Files' or drag and drop a PDF."
+            )
             return
         
-        # Disable button during processing
-        self.summarize_button.setEnabled(False)
+        # Check if file still exists (might have been deleted)
+        try:
+            if not self.current_file.exists():
+                QMessageBox.warning(
+                    self,
+                    "File Not Found",
+                    f"The selected file no longer exists:\n{self.current_file}"
+                )
+                self.file_upload.clear_selection()
+                self.current_file = None
+                self.summarize_button.setEnabled(False)
+                return
+        except Exception as e:
+            logger.error(f"Error checking file existence: {str(e)}")
+            QMessageBox.warning(
+                self,
+                "File Error",
+                f"Unable to access the selected file:\n{str(e)}"
+            )
+            return
+        
+        # Disable all interactive components to prevent changes during processing
+        self._disable_all_components()
+        
+        # Clear previous summary
         self.summary_display.clear_summary()
         
-        # Get selected mode
-        mode = self.mode_selector.get_mode()
+        # Get selected mode and prepare for processing
+        try:
+            mode = self.mode_selector.get_mode()
+        except Exception as e:
+            logger.error(f"Error getting mode: {str(e)}")
+            QMessageBox.warning(self, "Error", "Unable to determine summarization mode.")
+            # Re-enable all components on error
+            self._enable_all_components()
+            return
         
-        # Show progress
+        # Show progress with appropriate message
         mode_str = "extractive" if mode == SummarizationMode.EXTRACTIVE else "abstractive"
         self.progress_indicator.show_progress(f"Starting {mode_str} summarization...")
         
-        # Create and start worker thread
-        self.worker = SummarizationWorker(
-            self.current_file,
-            mode,
-            self.extractive_summarizer,
-            self.abstractive_summarizer if mode == SummarizationMode.ABSTRACTIVE else None
-        )
-        self.worker.progress.connect(self._on_progress_update)
-        self.worker.finished.connect(self._on_summarization_finished)
-        self.worker.error.connect(self._on_summarization_error)
-        self.worker.start()
+        # Start timer for periodic updates of time and memory
+        self.update_timer.start()
+        
+        # Create and start worker thread for background processing
+        # This prevents the UI from freezing during long operations
+        try:
+            self.worker = SummarizationWorker(
+                self.current_file,
+                mode,
+                self.extractive_summarizer,
+                self.abstractive_summarizer if mode == SummarizationMode.ABSTRACTIVE else None,
+                self.mode_selector  # Pass mode selector to access length preset
+            )
+            self.worker.progress.connect(self._on_progress_update)
+            self.worker.finished.connect(self._on_summarization_finished)
+            self.worker.error.connect(self._on_summarization_error)
+            self.worker.start()
+        except Exception as e:
+            logger.error(f"Error starting worker thread: {str(e)}", exc_info=True)
+            self.progress_indicator.hide_progress()
+            # Re-enable all components on error
+            self._enable_all_components()
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to start summarization:\n{str(e)}"
+            )
     
     def _on_progress_update(self, value: int, message: str):
         """Handle progress updates."""
         self.progress_indicator.update_progress(value, message)
+        # Update status bar with message and time/memory info
+        self._update_status_bar(message)
+    
+    def _update_progress_info(self):
+        """Periodically update time and memory displays during and after processing."""
+        if self.progress_indicator.isVisible():
+            # Update time only if not in completed state (time should stop after completion)
+            if not hasattr(self.progress_indicator, 'final_time') or self.progress_indicator.final_time is None:
+                self.progress_indicator._update_time()
+            # Always update memory to show current usage
+            self.progress_indicator._update_memory()
+    
+    def _update_status_bar(self, message: str):
+        """Update status bar with message, using semantic colors for different states."""
+        # Determine message type and apply appropriate styling
+        if "error" in message.lower() or "failed" in message.lower():
+            # Error message - red
+            self.statusBar().setStyleSheet("QStatusBar { background-color: #dc3545; color: white; }")
+        elif "complete" in message.lower() or "success" in message.lower():
+            # Success message - green
+            self.statusBar().setStyleSheet("QStatusBar { background-color: #28a745; color: white; }")
+        else:
+            # Normal/processing message - blue (default)
+            self.statusBar().setStyleSheet("QStatusBar { background-color: #0078d4; color: white; }")
         self.statusBar().showMessage(message)
     
     def _on_summarization_finished(self, summary: str):
         """Handle summarization completion."""
-        self.progress_indicator.hide_progress()
+        # Show completed state with final time (keeps time displayed)
+        if self.progress_indicator.start_time:
+            final_time = time.time() - self.progress_indicator.start_time
+            self.progress_indicator.show_completed(final_time)
+        
+        # Keep timer running to update memory display
+        # Timer will be stopped when file is selected/cleared or new summarization starts
+        
         self.summary_display.set_summary(summary)
-        self.summarize_button.setEnabled(True)
-        self.statusBar().showMessage("Summary generated successfully")
+        
+        # Re-enable all components
+        self._enable_all_components()
+        
+        self._update_status_bar("✓ Summary generated successfully")
         
         # Clean up worker
         if self.worker:
@@ -254,13 +530,60 @@ class MainWindow(QMainWindow):
     
     def _on_summarization_error(self, error_message: str):
         """Handle summarization error."""
+        # Stop the update timer
+        self.update_timer.stop()
+        
         self.progress_indicator.hide_progress()
-        self.summarize_button.setEnabled(True)
-        self.statusBar().showMessage("Error occurred")
+        
+        # Re-enable all components on error
+        self._enable_all_components()
+        
+        self._update_status_bar("✗ Error occurred")
         
         QMessageBox.critical(self, "Error", error_message)
         
         # Clean up worker
+        if self.worker:
+            self.worker.quit()
+            self.worker.wait()
+            self.worker = None
+    
+    def _disable_all_components(self):
+        """Disable all interactive UI components during processing."""
+        self.file_upload.set_enabled(False)
+        self.mode_selector.set_enabled(False)
+        self.summarize_button.setEnabled(False)
+    
+    def _enable_all_components(self):
+        """Re-enable all interactive UI components after processing."""
+        self.file_upload.set_enabled(True)
+        self.mode_selector.set_enabled(True)
+        # Only enable summarize button if a file is selected
+        if self.current_file:
+            self.summarize_button.setEnabled(True)
+        else:
+            self.summarize_button.setEnabled(False)
+    
+    def _reset_all_fields(self):
+        """
+        Reset all fields when a new file is selected or current file is removed.
+        Clears summary, hides progress, resets status bar.
+        """
+        # Clear summary display
+        self.summary_display.clear_summary()
+        
+        # Hide progress indicator and reset timing
+        self.progress_indicator.hide_progress()
+        
+        # Stop update timer if running
+        if self.update_timer.isActive():
+            self.update_timer.stop()
+        
+        # Reset status bar to default
+        self.statusBar().setStyleSheet("QStatusBar { background-color: #0078d4; color: white; }")
+        
+        # Re-enable all components (they may have been disabled during processing)
+        self._enable_all_components()
         if self.worker:
             self.worker.quit()
             self.worker.wait()

@@ -32,12 +32,36 @@ class TextPreprocessor:
     
     def _ensure_nltk_data(self) -> None:
         """Download required NLTK data if not present."""
+        # Try to find punkt tokenizer (old format)
+        punkt_found = False
         try:
             nltk.data.find(f'tokenizers/punkt/{self.language}.pickle')
+            punkt_found = True
         except LookupError:
-            logger.info(f"Downloading NLTK punkt tokenizer for {self.language}")
-            nltk.download('punkt', quiet=True)
+            pass
         
+        # Try to find punkt_tab tokenizer (new format in NLTK 3.8.1+)
+        punkt_tab_found = False
+        try:
+            nltk.data.find(f'tokenizers/punkt_tab/{self.language}.pickle')
+            punkt_tab_found = True
+        except LookupError:
+            pass
+        
+        # Download punkt_tab if neither format is found (punkt_tab is the newer format)
+        if not punkt_found and not punkt_tab_found:
+            logger.info(f"Downloading NLTK punkt_tab tokenizer for {self.language}")
+            try:
+                nltk.download('punkt_tab', quiet=True)
+            except Exception as e:
+                logger.warning(f"Failed to download punkt_tab, trying punkt: {str(e)}")
+                # Fallback to old punkt if punkt_tab fails
+                try:
+                    nltk.download('punkt', quiet=True)
+                except Exception as e2:
+                    logger.error(f"Failed to download punkt tokenizer: {str(e2)}")
+        
+        # Download stopwords
         try:
             nltk.data.find(f'corpora/stopwords/{self.language}.zip')
         except LookupError:
@@ -89,9 +113,53 @@ class TextPreprocessor:
             # Filter out very short sentences
             sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
             return sentences
+        except LookupError as e:
+            # NLTK resource missing - try to download it
+            logger.warning(f"NLTK resource missing: {str(e)}")
+            try:
+                logger.info("Attempting to download missing NLTK resources...")
+                nltk.download('punkt_tab', quiet=True)
+                # Try again after download
+                sentences = sent_tokenize(text, language=self.language)
+                sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+                return sentences
+            except Exception as e2:
+                logger.error(f"Failed to download NLTK resources: {str(e2)}")
+                # Fallback: simple sentence splitting
+                return self._fallback_sentence_split(text)
         except Exception as e:
             logger.error(f"Error tokenizing sentences: {str(e)}")
-            return [text]  # Fallback to original text
+            # Fallback: simple sentence splitting
+            return self._fallback_sentence_split(text)
+    
+    def _fallback_sentence_split(self, text: str) -> List[str]:
+        """
+        Fallback sentence splitting when NLTK is unavailable.
+        Uses simple regex-based splitting.
+        
+        Args:
+            text: Text to split
+            
+        Returns:
+            List of sentences
+        """
+        # Simple sentence splitting on periods, exclamation marks, and question marks
+        import re
+        # Split on sentence-ending punctuation followed by space or end of string
+        sentences = re.split(r'([.!?]+(?:\s+|$))', text)
+        # Combine punctuation with previous sentence
+        result = []
+        for i in range(0, len(sentences) - 1, 2):
+            if i + 1 < len(sentences):
+                sentence = (sentences[i] + sentences[i + 1]).strip()
+            else:
+                sentence = sentences[i].strip()
+            if sentence and len(sentence) > 10:
+                result.append(sentence)
+        # If no sentences found, return the whole text
+        if not result:
+            return [text.strip()] if text.strip() else []
+        return result
     
     def tokenize_words(self, text: str) -> List[str]:
         """
