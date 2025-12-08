@@ -1,0 +1,29 @@
+[33mcommit 138c1d51f494bffb98893d40a54ec258482c82e3[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Ammad Shah <ammadshah.engineer@outlook.com>
+Date:   Mon Dec 8 10:23:35 2025 +0500
+
+    Enhance core summarization and GUI components with improved functionality and documentation
+    
+    - Core: Add lazy torch imports, enhanced error handling, and improved documentation in abstractive summarizer
+    
+    - Core: Refactor model loader and preprocessor with better structure and error messages
+    
+    - GUI: Enhance all components (file upload, mode selector, progress indicator, summary display) with improved UX
+    
+    - GUI: Update main window with better threading, progress tracking, and user feedback
+    
+    - UI: Improve theme and styling across all components
+    
+    - Config: Add configuration enhancements and better defaults
+
+ src/core/abstractive/model_loader.py     | 297 [32m++++++++++++[m[31m-----[m
+ src/core/abstractive/summarizer.py       | 552 [32m+++++++++++++++++++++++++++[m[31m----[m
+ src/core/preprocessor.py                 |  74 [32m++++[m[31m-[m
+ src/gui/components/file_upload.py        | 342 [32m++++++++++++++[m[31m-----[m
+ src/gui/components/mode_selector.py      | 146 [32m++++++[m[31m--[m
+ src/gui/components/progress_indicator.py | 182 [32m+++++++++[m[31m-[m
+ src/gui/components/summary_display.py    | 352 [32m++++++++++++++[m[31m------[m
+ src/gui/main_window.py                   | 471 [32m+++++++++++++++++++++[m[31m-----[m
+ src/gui/styles/theme.py                  | 186 [32m+++++++++[m[31m--[m
+ src/utils/config.py                      |  81 [32m++++[m[31m-[m
+ 10 files changed, 2230 insertions(+), 453 deletions(-)

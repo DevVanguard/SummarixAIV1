@@ -77,6 +77,7 @@ class ProgressIndicatorWidget(QWidget):
         self.status_label.setText(message)
         self.progress_bar.setValue(0)
         self.start_time = time.time()
+        self.final_time = None  # Reset final time when starting new progress
         self._update_time()
         self._update_memory()
         self.show()
@@ -140,13 +141,17 @@ class ProgressIndicatorWidget(QWidget):
         elapsed = time.time() - self.start_time
         elapsed_str = f"{elapsed:.1f}s"
         
-        # Estimate remaining time based on progress
-        progress = self.progress_bar.value()
-        if progress > 0 and progress < 100:
-            estimated_total = elapsed / (progress / 100.0)
-            remaining = estimated_total - elapsed
-            estimated_str = f" | Est: {remaining:.1f}s"
+        # Estimate remaining time based on progress (if progress bar is visible and has value)
+        if self.progress_bar.isVisible() and self.progress_bar.maximum() > 0:
+            progress = self.progress_bar.value()
+            if progress > 0 and progress < 100:
+                estimated_total = elapsed / (progress / 100.0)
+                remaining = estimated_total - elapsed
+                estimated_str = f" | Est: {remaining:.1f}s"
+            else:
+                estimated_str = ""
         else:
+            # No progress info available, just show elapsed time
             estimated_str = ""
         
         self.time_label.setText(f"⏱ Time: {elapsed_str}{estimated_str}")
@@ -162,25 +167,6 @@ class ProgressIndicatorWidget(QWidget):
         self.final_time = None  # Reset final time
         self.time_label.setText("⏱ Time: --")
         self.memory_label.setText("💾 Memory: --")
-    
-    def _update_time(self):
-        """Update the processing time display."""
-        if self.start_time is None:
-            return
-        
-        elapsed = time.time() - self.start_time
-        elapsed_str = f"{elapsed:.1f}s"
-        
-        # Estimate remaining time based on progress
-        progress = self.progress_bar.value()
-        if progress > 0 and progress < 100:
-            estimated_total = elapsed / (progress / 100.0)
-            remaining = estimated_total - elapsed
-            estimated_str = f" | Est: {remaining:.1f}s"
-        else:
-            estimated_str = ""
-        
-        self.time_label.setText(f"⏱ Time: {elapsed_str}{estimated_str}")
     
     def _update_memory(self):
         """Update the memory usage display using built-in os module."""

@@ -24,6 +24,7 @@ from src.core.abstractive.summarizer import AbstractiveSummarizer
 from src.core.extractive.textrank import TextRankSummarizer
 from src.core.pdf_processor import PDFProcessor
 from src.gui.components.file_upload import FileUploadWidget
+from src.gui.components.loading_spinner import LoadingSpinner
 from src.gui.components.mode_selector import ModeSelectorWidget, SummarizationMode
 from src.gui.components.progress_indicator import ProgressIndicatorWidget
 from src.gui.components.summary_display import SummaryDisplayWidget
@@ -287,6 +288,7 @@ class MainWindow(QMainWindow):
         self.file_upload = FileUploadWidget()
         self.file_upload.file_selected.connect(self._on_file_selected)
         self.file_upload.file_cleared.connect(self._on_file_cleared)
+        self.file_upload.validation_complete.connect(self._on_validation_complete)
         layout.addWidget(self.file_upload)
         
         # Mode selector
@@ -311,7 +313,17 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(self.summarize_button)
         
-        # Progress indicator
+        # Loading spinner - sleek circular animation below button
+        spinner_container = QWidget()
+        spinner_layout = QVBoxLayout()
+        spinner_layout.setContentsMargins(0, 8, 0, 8)
+        spinner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_spinner = LoadingSpinner(size=48, line_width=4)
+        spinner_layout.addWidget(self.loading_spinner, alignment=Qt.AlignmentFlag.AlignCenter)
+        spinner_container.setLayout(spinner_layout)
+        layout.addWidget(spinner_container)
+        
+        # Progress indicator (kept for time/memory info, but hidden during processing)
         self.progress_indicator = ProgressIndicatorWidget()
         layout.addWidget(self.progress_indicator)
         
@@ -368,14 +380,32 @@ class MainWindow(QMainWindow):
     def _on_file_selected(self, file_path: Path):
         """
         Handle file selection event.
-        Enables the summarize button, resets all fields, and updates status bar.
+        Resets all fields and updates status bar. Button will be enabled after validation.
         """
         # Reset all fields when a new file is selected
         self._reset_all_fields()
         
         self.current_file = file_path
-        self.summarize_button.setEnabled(True)
-        self._update_status_bar(f"File selected: {file_path.name}")
+        # Don't enable button yet - wait for validation
+        self.summarize_button.setEnabled(False)
+        self._update_status_bar(f"Validating file: {file_path.name}...")
+    
+    def _on_validation_complete(self, is_valid: bool):
+        """
+        Handle validation completion event.
+        Enables or disables the summarize button based on validation results.
+        
+        Args:
+            is_valid: True if file passed all validations, False otherwise
+        """
+        if is_valid:
+            self.summarize_button.setEnabled(True)
+            if self.current_file:
+                self._update_status_bar(f"✓ File validated: {self.current_file.name} - Ready to process")
+        else:
+            self.summarize_button.setEnabled(False)
+            if self.current_file:
+                self._update_status_bar(f"✗ Validation failed for: {self.current_file.name} - Please check errors")
     
     def _on_file_cleared(self):
         """
@@ -444,11 +474,15 @@ class MainWindow(QMainWindow):
             self._enable_all_components()
             return
         
-        # Show progress with appropriate message
+        # Show loading spinner
+        self.loading_spinner.start()
+        
+        # Show progress with appropriate message (this also starts the timer)
         mode_str = "extractive" if mode == SummarizationMode.EXTRACTIVE else "abstractive"
         self.progress_indicator.show_progress(f"Starting {mode_str} summarization...")
         
-        # Start timer for periodic updates of time and memory
+        # Ensure progress indicator is visible and start timer for periodic updates
+        self.progress_indicator.show()
         self.update_timer.start()
         
         # Create and start worker thread for background processing
@@ -467,6 +501,7 @@ class MainWindow(QMainWindow):
             self.worker.start()
         except Exception as e:
             logger.error(f"Error starting worker thread: {str(e)}", exc_info=True)
+            self.loading_spinner.stop()
             self.progress_indicator.hide_progress()
             # Re-enable all components on error
             self._enable_all_components()
@@ -484,7 +519,9 @@ class MainWindow(QMainWindow):
     
     def _update_progress_info(self):
         """Periodically update time and memory displays during and after processing."""
-        if self.progress_indicator.isVisible():
+        # Update time and memory if progress indicator has been initialized (has start_time)
+        # This works even if the widget is temporarily hidden
+        if hasattr(self.progress_indicator, 'start_time') and self.progress_indicator.start_time is not None:
             # Update time only if not in completed state (time should stop after completion)
             if not hasattr(self.progress_indicator, 'final_time') or self.progress_indicator.final_time is None:
                 self.progress_indicator._update_time()
@@ -507,6 +544,9 @@ class MainWindow(QMainWindow):
     
     def _on_summarization_finished(self, summary: str):
         """Handle summarization completion."""
+        # Stop loading spinner
+        self.loading_spinner.stop()
+        
         # Show completed state with final time (keeps time displayed)
         if self.progress_indicator.start_time:
             final_time = time.time() - self.progress_indicator.start_time
@@ -530,6 +570,9 @@ class MainWindow(QMainWindow):
     
     def _on_summarization_error(self, error_message: str):
         """Handle summarization error."""
+        # Stop loading spinner
+        self.loading_spinner.stop()
+        
         # Stop the update timer
         self.update_timer.stop()
         

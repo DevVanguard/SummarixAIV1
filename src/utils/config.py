@@ -56,6 +56,16 @@ class Config:
     REPETITION_PENALTY = 1.3  # Reduce repetition without being too aggressive
     NO_REPEAT_NGRAM_SIZE = 3  # Avoid 3-gram repetition
     
+    # File validation settings
+    MAX_FILE_SIZE_MB = 100  # Maximum file size in MB (hard limit)
+    WARNING_FILE_SIZE_MB = 50  # Warning threshold in MB
+    MIN_TEXT_LENGTH = 100  # Minimum extractable text characters
+    MAX_PAGES_WARNING = 500  # Warn if PDF has more than this many pages
+    
+    # Memory validation settings
+    MIN_AVAILABLE_MEMORY_MB = 500  # Minimum available memory required
+    MEMORY_MULTIPLIER = 4  # File size × this for processing memory estimate
+    
     @classmethod
     def ensure_directories(cls) -> None:
         """Create necessary directories if they don't exist."""

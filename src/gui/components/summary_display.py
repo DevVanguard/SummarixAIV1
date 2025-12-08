@@ -193,7 +193,7 @@ class SummaryDisplayWidget(QWidget):
             return
         
         try:
-            clipboard = QClipboard()
+            clipboard = self.text_display.clipboard()
             clipboard.setText(self.summary_text)
             logger.info("Summary copied to clipboard successfully")
             

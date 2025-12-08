@@ -4,18 +4,119 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
+from src.utils.validators import validate_file_size, validate_memory_for_file
+
 logger = logging.getLogger(__name__)
+
+
+class ClickableLabel(QLabel):
+    """A clickable QLabel that emits a clicked signal."""
+    
+    clicked = pyqtSignal()
+    
+    def mousePressEvent(self, event):
+        """Handle mouse press event."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class ValidationWorker(QThread):
+    """Worker thread for asynchronous file validation."""
+    
+    check_complete = pyqtSignal(str, str, str)  # name, status, message
+    validation_finished = pyqtSignal(bool)  # is_valid
+    
+    def __init__(self, file_path):
+        super().__init__()
+        self.file_path = file_path
+    
+    def run(self):
+        """Run validation checks."""
+        try:
+            from src.core.pdf_processor import PDFProcessor
+            from src.utils.config import Config
+            from src.utils.validators import validate_file_size, validate_memory_for_file
+            
+            all_valid = True
+            
+            # 1. File size validation
+            try:
+                is_valid, warning, error = validate_file_size(self.file_path)
+                if error:
+                    logger.error(f"File size validation failed: {error}")
+                    self.validation_finished.emit(False)
+                    return
+                elif warning:
+                    logger.warning(f"File size warning: {warning}")
+            except Exception as e:
+                logger.error(f"Error in file size validation: {str(e)}", exc_info=True)
+                self.validation_finished.emit(False)
+                return
+            
+            # 2. PDF format validation
+            try:
+                with PDFProcessor() as processor:
+                    if not processor.load_pdf(self.file_path):
+                        logger.error("Failed to load PDF file")
+                        self.validation_finished.emit(False)
+                        return
+                    
+                    is_valid, error_msg = processor.validate_pdf()
+                    if not is_valid:
+                        logger.error(f"PDF validation failed: {error_msg}")
+                        self.validation_finished.emit(False)
+                        return
+                    
+                    if processor.is_password_protected():
+                        logger.error("PDF is password-protected")
+                        self.validation_finished.emit(False)
+                        return
+                    
+                    # 3. Text extractability (quick check - first page only)
+                    text_extractable, warning_msg, text_length = processor.check_text_extractable()
+                    if not text_extractable:
+                        logger.error(f"Text extraction failed: {warning_msg}")
+                        self.validation_finished.emit(False)
+                        return
+                    
+                    # 4. Memory check (quick)
+                    try:
+                        has_memory, mem_warning, mem_error = validate_memory_for_file(self.file_path)
+                        if mem_error:
+                            logger.error(f"Memory validation failed: {mem_error}")
+                            self.validation_finished.emit(False)
+                            return
+                    except Exception as e:
+                        logger.warning(f"Memory check error (continuing anyway): {str(e)}")
+                        # Don't fail validation on memory check errors - just warn
+                    
+                    # All validations passed
+                    logger.info(f"File validation passed for: {self.file_path.name}")
+                    self.validation_finished.emit(True)
+                    return
+                    
+            except Exception as e:
+                logger.error(f"Error in PDF validation: {str(e)}", exc_info=True)
+                self.validation_finished.emit(False)
+                return
+                
+        except Exception as e:
+            logger.error(f"Unexpected validation error: {str(e)}", exc_info=True)
+            self.validation_finished.emit(False)
 
 
 class FileUploadWidget(QWidget):
@@ -26,11 +127,14 @@ class FileUploadWidget(QWidget):
     
     file_selected = pyqtSignal(Path)  # Emitted when a file is selected
     file_cleared = pyqtSignal()  # Emitted when the file selection is cleared
+    validation_complete = pyqtSignal(bool)  # Emitted when validation completes (True if valid)
     
     def __init__(self, parent=None):
         """Initialize file upload widget."""
         super().__init__(parent)
         self.selected_file: Optional[Path] = None
+        self.validation_worker: Optional[ValidationWorker] = None
+        self.validation_status = ""  # "", "validating", "valid", "invalid", "warning"
         self._setup_ui()
         self.setAcceptDrops(True)
     
@@ -44,9 +148,11 @@ class FileUploadWidget(QWidget):
         layout.setContentsMargins(16, 12, 16, 12)  # Tighter margins
         
         # Instructions label with modern styling (shown when no file selected)
-        # Enhanced with better dashed border and hover effect
-        self.instruction_label = QLabel("📄 Drag and drop a PDF file here\nor click Browse Files")
+        # Made clickable to browse files
+        self.instruction_label = ClickableLabel("📄 Drag and drop a PDF file here\nor click to browse")
         self.instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.instruction_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.instruction_label.clicked.connect(self._browse_files)
         self.instruction_label.setStyleSheet("""
             QLabel {
                 color: #808080;
@@ -61,6 +167,7 @@ class FileUploadWidget(QWidget):
                 color: #a0a0a0;
                 border: 2px dashed #5d5d5d;
                 background-color: #323232;
+                cursor: pointer;
             }
         """)
         
@@ -74,11 +181,13 @@ class FileUploadWidget(QWidget):
         file_display_layout = QHBoxLayout()
         file_display_layout.setSpacing(8)  # Reduced spacing for compact layout
         
-        # File icon/name label with proper text handling
-        self.file_label = QLabel("No file selected")
+        # File icon/name label with proper text handling and validation status
+        self.file_label = ClickableLabel("No file selected")
         self.file_label.setWordWrap(True)  # Allow wrapping for very long names
-        self.file_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.file_label.setTextFormat(Qt.TextFormat.RichText)
         self.file_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.file_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.file_label.clicked.connect(self._browse_files)
         self.file_label.setStyleSheet("""
             QLabel {
                 color: #4ec9b0;
@@ -88,7 +197,13 @@ class FileUploadWidget(QWidget):
                 border: 2px solid #3d3d3d;
                 border-radius: 6px;
             }
+            QLabel:hover {
+                background-color: #323232;
+                border: 2px solid #4d4d4d;
+                cursor: pointer;
+            }
         """)
+        self.validation_status = ""  # Track validation status: "", "validating", "valid", "invalid", "warning"
         
         # Remove button (X button to clear selection) - compact size with semantic red color
         self.remove_button = QPushButton("✕")
@@ -134,22 +249,8 @@ class FileUploadWidget(QWidget):
         self.file_info_container.setLayout(file_info_layout)
         self.file_info_container.hide()  # Hidden initially
         
-        # Browse button (always visible, but text changes) - compact professional size
-        self.browse_button = QPushButton("Browse Files")
-        self.browse_button.clicked.connect(self._browse_files)
-        self.browse_button.setFixedHeight(36)  # Compact height following HCI principles
-        self.browse_button.setStyleSheet("""
-            QPushButton {
-                font-size: 10pt;
-                font-weight: 500;
-                padding: 8px 16px;
-                border-radius: 6px;
-            }
-        """)
-        
         layout.addWidget(self.instruction_label)
         layout.addWidget(self.file_info_container)
-        layout.addWidget(self.browse_button)
         
         self.setLayout(layout)
     
@@ -303,11 +404,7 @@ class FileUploadWidget(QWidget):
             available_width = max(300, self.width() - 100)  # Dynamic width calculation
             elided_name = font_metrics.elidedText(file_name, Qt.TextElideMode.ElideMiddle, available_width)
             
-            self.file_label.setText(
-                f"📄 {elided_name}\n"
-                f"   Size: {size_str}"
-            )
-            self.file_label.setToolTip(f"Full path: {file_path}\nSize: {size_str}")  # Show full info on hover
+            # File label will be updated by _update_file_label method
             
             # Hide drag-and-drop placeholder
             self.instruction_label.hide()
@@ -316,10 +413,15 @@ class FileUploadWidget(QWidget):
             self.file_info_container.show()
             self.remove_button.show()
             
-            # Update browse button text to indicate they can change file
-            self.browse_button.setText("Change File")
-            
             logger.info(f"File selected: {file_path}")
+            
+            # Update file label with validation status
+            self._update_file_label(file_path, size_str, "validating")
+            
+            # Start validation
+            self._validate_file(file_path)
+            
+            # Emit signal (validation will emit validation_complete when done)
             self.file_selected.emit(file_path)
             
         except Exception as e:
@@ -348,8 +450,13 @@ class FileUploadWidget(QWidget):
         self.file_info_container.hide()
         self.remove_button.hide()
         
-        # Reset browse button text
-        self.browse_button.setText("Browse Files")
+        # Stop validation worker if running
+        if self.validation_worker and self.validation_worker.isRunning():
+            self.validation_worker.terminate()
+            self.validation_worker.wait()
+            self.validation_worker = None
+        
+        self.validation_status = ""
         
         logger.info("File selection cleared")
         
@@ -363,7 +470,109 @@ class FileUploadWidget(QWidget):
         Args:
             enabled: True to enable, False to disable
         """
-        self.browse_button.setEnabled(enabled)
         self.remove_button.setEnabled(enabled)
         self.setAcceptDrops(enabled)  # Enable/disable drag and drop
+        # Update cursor based on enabled state
+        if enabled:
+            self.instruction_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.file_info_container.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.file_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.instruction_label.setCursor(Qt.CursorShape.ArrowCursor)
+            self.file_info_container.setCursor(Qt.CursorShape.ArrowCursor)
+            self.file_label.setCursor(Qt.CursorShape.ArrowCursor)
+    
+    def _validate_file(self, file_path: Path):
+        """
+        Validate the selected file asynchronously and update UI with validation status.
+        
+        Args:
+            file_path: Path to the file to validate
+        """
+        # Stop any existing validation
+        if self.validation_worker and self.validation_worker.isRunning():
+            self.validation_worker.terminate()
+            self.validation_worker.wait()
+        
+        # Start asynchronous validation
+        self.validation_worker = ValidationWorker(file_path)
+        self.validation_worker.validation_finished.connect(self._on_validation_finished)
+        self.validation_worker.start()
+    
+    def _on_validation_finished(self, is_valid: bool):
+        """Handle validation completion signal."""
+        if self.selected_file:
+            file_size = self.selected_file.stat().st_size / (1024 * 1024)
+            size_str = f"{file_size:.2f} MB" if file_size >= 1 else f"{file_size * 1024:.1f} KB"
+            
+            # Update validation status
+            if is_valid:
+                self.validation_status = "valid"
+            else:
+                self.validation_status = "invalid"
+                # Show error message for validation failure
+                QMessageBox.warning(
+                    self,
+                    "Validation Failed",
+                    f"File validation failed for: {self.selected_file.name}\n\n"
+                    "The file may be:\n"
+                    "- Too large (max 100 MB)\n"
+                    "- Corrupted or invalid PDF\n"
+                    "- Password-protected\n"
+                    "- Image-based (scanned document)\n"
+                    "- Missing extractable text\n\n"
+                    "Please select a different file."
+                )
+            
+            # Update file label with validation status
+            self._update_file_label(self.selected_file, size_str, self.validation_status)
+        
+        self.validation_complete.emit(is_valid)
+        if self.validation_worker:
+            self.validation_worker.deleteLater()
+            self.validation_worker = None
+    
+    def _update_file_label(self, file_path: Path, size_str: str, status: str = ""):
+        """
+        Update the file label with file info and validation status icon.
+        
+        Args:
+            file_path: Path to the file
+            size_str: Formatted file size string
+            status: Validation status ("", "validating", "valid", "invalid", "warning")
+        """
+        file_name = file_path.name
+        font_metrics = self.file_label.fontMetrics()
+        available_width = max(300, self.width() - 100)
+        elided_name = font_metrics.elidedText(file_name, Qt.TextElideMode.ElideMiddle, available_width)
+        
+        # Choose status icon
+        if status == "validating":
+            status_icon = "⏳"
+            status_color = "#808080"
+        elif status == "valid":
+            status_icon = "✓"
+            status_color = "#28a745"
+        elif status == "invalid":
+            status_icon = "✗"
+            status_color = "#dc3545"
+        elif status == "warning":
+            status_icon = "⚠"
+            status_color = "#ffc107"
+        else:
+            status_icon = ""
+            status_color = "#4ec9b0"
+        
+        # Build label text with HTML formatting
+        if status_icon:
+            label_text = f"📄 {elided_name} <span style='color: {status_color}; font-weight: bold; font-size: 11pt;'>{status_icon}</span><br><span style='color: #808080; font-size: 9pt;'>Size: {size_str}</span>"
+        else:
+            label_text = f"📄 {elided_name}<br><span style='color: #808080; font-size: 9pt;'>Size: {size_str}</span>"
+        
+        self.file_label.setText(label_text)
+        self.file_label.setToolTip(f"Full path: {file_path}\nSize: {size_str}\nClick to change file")
+    
+    def is_file_valid(self) -> bool:
+        """Check if the currently selected file has passed all validations."""
+        return self.validation_status == "valid"
 
