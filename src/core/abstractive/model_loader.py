@@ -4,12 +4,6 @@ This module handles downloading, loading, and managing the T5 model for abstract
 It supports both quantized (INT8) and full precision (FP32) model loading.
 """
 
-"""
-Model loading module for quantized T5-small.
-This module handles downloading, loading, and managing the T5 model for abstractive summarization.
-It supports both quantized (INT8) and full precision (FP32) model loading.
-"""
-
 import logging
 import os
 from pathlib import Path
@@ -176,8 +170,6 @@ class ModelLoader:
             return False
     
     def _try_quantization(self) -> bool:
-        """Try to load model with INT8 quantization."""
-        _ensure_transformers_imported()  # Ensure transformers is imported
         """
         Try to load model with INT8 quantization for reduced memory usage.
         Quantization reduces model size and memory requirements but may slightly
@@ -186,6 +178,7 @@ class ModelLoader:
         Returns:
             True if quantization successful, False otherwise
         """
+        _ensure_transformers_imported()  # Ensure transformers is imported
         try:
             # Check if bitsandbytes is available
             import bitsandbytes as bnb
