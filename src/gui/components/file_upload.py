@@ -145,7 +145,7 @@ class FileUploadWidget(QWidget):
         """
         layout = QVBoxLayout()
         layout.setSpacing(8)  # Reduced spacing for efficiency
-        layout.setContentsMargins(16, 12, 16, 12)  # Tighter margins
+        layout.setContentsMargins(0, 0, 0, 0)  # Remove internal margins for consistent width
         
         # Instructions label with modern styling (shown when no file selected)
         # Made clickable to browse files

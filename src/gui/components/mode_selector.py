@@ -51,7 +51,7 @@ class ModeSelectorWidget(QWidget):
         """
         layout = QVBoxLayout()
         layout.setSpacing(8)  # Tighter spacing
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 0)  # Consistent margins for alignment
         
         # Main group box for mode selection
         group_box = QGroupBox("Summarization Mode")

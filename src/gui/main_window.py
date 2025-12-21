@@ -289,22 +289,27 @@ class MainWindow(QMainWindow):
         layout.setSpacing(16)  # Better spacing for visual breathing room
         layout.setContentsMargins(20, 16, 20, 16)  # Generous margins for modern look
         
-        # File upload
+        # File upload - set consistent width policy
         self.file_upload = FileUploadWidget()
         self.file_upload.file_selected.connect(self._on_file_selected)
         self.file_upload.file_cleared.connect(self._on_file_cleared)
         self.file_upload.validation_complete.connect(self._on_validation_complete)
+        # Set size policy to ensure consistent width
+        self.file_upload.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout.addWidget(self.file_upload)
         
-        # Mode selector
+        # Mode selector - set consistent width policy
         self.mode_selector = ModeSelectorWidget()
+        self.mode_selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         layout.addWidget(self.mode_selector)
         
         # Summarize button - enhanced professional styling with depth
+        # Set consistent width to match other components
         self.summarize_button = QPushButton("⚡ Summarize")
         self.summarize_button.setEnabled(False)  # Disabled until file is selected
         self.summarize_button.clicked.connect(self._on_summarize)
         self.summarize_button.setFixedHeight(44)  # Slightly taller for better presence
+        self.summarize_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.summarize_button.setStyleSheet("""
             QPushButton {
                 font-size: 12pt;
@@ -338,16 +343,15 @@ class MainWindow(QMainWindow):
         # Summary display - make it expandable to use available space
         # Hidden initially, shown only when summary is generated
         self.summary_display = SummaryDisplayWidget()
-        layout.addWidget(self.summary_display, 1)  # Give it stretch factor to expand
-        self.summary_display.hide()  # Hide initially until summary is generated
-        
-        central_widget.setLayout(layout)
-        
-        # Set size policy for better space utilization
+        # Set consistent width policy to match other components
         self.summary_display.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding
         )
+        layout.addWidget(self.summary_display, 1)  # Give it stretch factor to expand
+        self.summary_display.hide()  # Hide initially until summary is generated
+        
+        central_widget.setLayout(layout)
         
         # Status bar with enhanced styling
         self.statusBar().showMessage("Ready")

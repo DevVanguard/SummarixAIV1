@@ -160,7 +160,12 @@ def validate_memory_for_file(file_path: Path) -> Tuple[bool, Optional[str], Opti
         
         has_memory, memory_warning, available_mb = check_available_memory()
         
-        if not has_memory:
+        # If we couldn't check memory, allow processing but warn
+        if available_mb == 0.0 and memory_warning:
+            return True, memory_warning, None
+        
+        # Check if estimated memory exceeds available memory
+        if available_mb > 0 and estimated_memory > available_mb:
             error_msg = (
                 f"Insufficient memory. "
                 f"Estimated need: {estimated_memory:.0f} MB, "
@@ -169,6 +174,25 @@ def validate_memory_for_file(file_path: Path) -> Tuple[bool, Optional[str], Opti
             )
             return False, None, error_msg
         
+        # If general memory check failed (low system memory), but we have enough for this file
+        if not has_memory and available_mb > 0:
+            # Only fail if estimated memory is significant compared to available
+            if estimated_memory > available_mb * 0.9:
+                error_msg = (
+                    f"Insufficient memory. "
+                    f"Estimated need: {estimated_memory:.0f} MB, "
+                    f"Available: {available_mb:.0f} MB. "
+                    f"Please close other applications or use a smaller file."
+                )
+                return False, None, error_msg
+            # Otherwise, just warn
+            warning_msg = (
+                f"Low system memory ({available_mb:.0f} MB available). "
+                f"Processing may be slow or fail with large files."
+            )
+            return True, warning_msg, None
+        
+        # Warn if estimated memory is high relative to available
         if available_mb > 0 and estimated_memory > available_mb * 0.8:
             warning_msg = (
                 f"Processing may use significant memory ({estimated_memory:.0f} MB estimated). "

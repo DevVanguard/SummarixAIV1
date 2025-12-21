@@ -11,6 +11,7 @@ from typing import Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QClipboard
 from PyQt6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -48,7 +49,7 @@ class SummaryDisplayWidget(QWidget):
         """
         layout = QVBoxLayout()
         layout.setSpacing(8)  # Tighter spacing for efficiency
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 0)  # Consistent margins for alignment
         
         # Header with stats and actions - compact and efficient
         header_layout = QHBoxLayout()
@@ -206,7 +207,8 @@ class SummaryDisplayWidget(QWidget):
             return
         
         try:
-            clipboard = self.text_display.clipboard()
+            # Get the application's clipboard instance
+            clipboard = QApplication.clipboard()
             clipboard.setText(self.summary_text)
             logger.info("Summary copied to clipboard successfully")
             
@@ -214,7 +216,12 @@ class SummaryDisplayWidget(QWidget):
             # For now, we'll just log it
         except Exception as e:
             logger.error(f"Failed to copy to clipboard: {str(e)}")
-            # Could show an error message to user here if desired
+            # Show error message to user
+            QMessageBox.warning(
+                self,
+                "Copy Failed",
+                f"Failed to copy summary to clipboard:\n{str(e)}"
+            )
     
     def _export_txt(self):
         """

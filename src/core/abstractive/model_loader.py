@@ -131,7 +131,7 @@ class ModelLoader:
                 self.model = AutoModelForSeq2SeqLM.from_pretrained(
                     str(model_path),
                     local_files_only=True,
-                    torch_dtype=torch.float32,  # Use FP32 for CPU (more compatible)
+                    dtype=torch.float32,  # Use FP32 for CPU (more compatible) - using dtype instead of deprecated torch_dtype
                     low_cpu_mem_usage=True  # Reduces memory usage during loading
                 )
                 logger.debug("Model loaded from disk")
@@ -187,6 +187,29 @@ class ModelLoader:
             logger.info("bitsandbytes not available, skipping INT8 quantization")
             return False
         
+        # Check if accelerate is available (required for bitsandbytes 8-bit quantization)
+        try:
+            try:
+                import accelerate
+            except ImportError:
+                logger.info("accelerate not available (required for INT8 quantization), skipping quantization")
+                return False
+            
+            # Check version requirement if packaging is available
+            try:
+                from packaging import version
+                if version.parse(accelerate.__version__) < version.parse("0.26.0"):
+                    logger.info("accelerate version too old (need >=0.26.0), skipping INT8 quantization")
+                    return False
+            except ImportError:
+                # packaging not available, but accelerate is - try anyway
+                logger.debug("packaging not available, cannot check accelerate version, attempting quantization")
+            except Exception as e:
+                logger.debug(f"Could not check accelerate version: {str(e)}, attempting quantization anyway")
+        except Exception as e:
+            logger.info(f"Error checking accelerate: {str(e)}, skipping INT8 quantization")
+            return False
+        
         try:
             logger.info("Attempting INT8 quantization with bitsandbytes")
             
@@ -210,14 +233,17 @@ class ModelLoader:
                 return False
             
             # Load model with quantization
+            # Note: device_map requires accelerate library, so we avoid it and handle device manually
             try:
                 self.model = AutoModelForSeq2SeqLM.from_pretrained(
                     str(model_path),
                     local_files_only=True,
                     quantization_config=quantization_config,
-                    device_map="cpu",  # Explicitly use CPU
                     low_cpu_mem_usage=True
                 )
+                # Move to CPU explicitly (device_map not needed, we handle it manually)
+                device = self._get_device()
+                self.model.to(device)
             except RuntimeError as e:
                 # Often means quantization isn't supported or out of memory
                 logger.warning(f"INT8 quantization failed (runtime error): {str(e)}")
