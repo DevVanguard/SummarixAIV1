@@ -5,10 +5,10 @@ We use a modern, professional design with smooth gradients and better visual hie
 """
 
 DARK_THEME = """
-/* Main window with subtle gradient background */
+/* Main window with subtle gradient background - enhanced depth */
 QMainWindow {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #1a1a1a, stop:1 #1e1e1e);
+        stop:0 #1a1a1a, stop:0.5 #1c1c1c, stop:1 #1e1e1e);
 }
 
 /* Base widget styling - modern dark theme */
@@ -19,26 +19,36 @@ QWidget {
     font-size: 10pt;
 }
 
-/* Modern button styling with gradient, shadows (simulated), and hover effects */
+/* Modern button styling with enhanced gradients and professional depth */
 /* Primary action buttons (blue) - default style */
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #0078d4, stop:1 #005a9e);
+        stop:0 #0078d4, stop:0.5 #006bb3, stop:1 #005a9e);
     color: white;
     border: 1px solid #004578;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-weight: 500;
-    font-size: 10pt;
-    min-height: 32px;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    font-size: 10.5pt;
+    min-height: 36px;
+    letter-spacing: 0.3px;
+    /* Enhanced depth with border highlights */
+    border-top: 1px solid #40a8ff;
+    border-left: 1px solid #40a8ff;
+    border-bottom: 2px solid #003d5c;
+    border-right: 2px solid #003d5c;
 }
 
-/* Hover state - lighter blue with elevation effect (simulated shadow) */
+/* Hover state - lighter blue with enhanced elevation effect */
 QPushButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #106ebe, stop:1 #0078d4);
+        stop:0 #1088d4, stop:0.5 #0078d4, stop:1 #006bb3);
     border: 1px solid #005a9e;
-    border-top: 2px solid #40a8ff;
+    border-top: 2px solid #60b8ff;
+    border-left: 2px solid #60b8ff;
+    /* Subtle lift effect */
+    padding-top: 9px;
+    padding-bottom: 11px;
 }
 
 /* Pressed state - darker blue with pressed effect */
@@ -63,22 +73,27 @@ QPushButton:disabled {
     opacity: 0.6;
 }
 
-/* Input fields with better focus states */
+/* Input fields with enhanced focus states and professional styling */
 QLineEdit, QTextEdit {
-    background-color: #2d2d2d;
+    background-color: #2a2a2a;
     border: 2px solid #3d3d3d;
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 8px;
+    padding: 10px 14px;
     color: #e0e0e0;
     selection-background-color: #0078d4;
     selection-color: white;
+    font-size: 10.5pt;
+    line-height: 1.6;
 }
 
 QLineEdit:focus, QTextEdit:focus {
     border: 2px solid #0078d4;
     background-color: #252525;
-    outline: 1px solid #40a8ff;
-    outline-offset: 1px;
+    outline: 2px solid #40a8ff;
+    outline-offset: 2px;
+    /* Enhanced glow effect */
+    border-top: 2px solid #60b8ff;
+    border-left: 2px solid #60b8ff;
 }
 
 QTextEdit {
@@ -185,31 +200,33 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
-/* Group boxes with card-like appearance */
+/* Group boxes with enhanced card-like appearance - professional depth */
 QGroupBox {
-    border: 2px solid #3d3d3d;
-    border-radius: 10px;
-    margin-top: 12px;
-    padding-top: 16px;
+    border: 1px solid #3d3d3d;
+    border-radius: 12px;
+    margin-top: 16px;
+    padding-top: 20px;
+    padding-bottom: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
     font-weight: 600;
     font-size: 11pt;
     background-color: #252525;
+    /* Subtle shadow effect using borders */
+    border-top: 1px solid #4d4d4d;
+    border-left: 1px solid #4d4d4d;
+    border-bottom: 2px solid #1a1a1a;
+    border-right: 2px solid #1a1a1a;
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 16px;
-    padding: 0px 8px;
+    left: 20px;
+    padding: 0px 10px;
     color: #4ec9b0;
-}
-
-/* Card-like depth effect for group boxes */
-QGroupBox {
-    border: 2px solid #3d3d3d;
-    border-top: 2px solid #4d4d4d;
-    border-left: 2px solid #4d4d4d;
-    border-bottom: 2px solid #2d2d2d;
-    border-right: 2px solid #2d2d2d;
+    font-weight: 700;
+    font-size: 11.5pt;
+    letter-spacing: 0.5px;
 }
 
 /* Combo box styling */
@@ -291,6 +308,37 @@ QPushButton[buttonType="danger"]:pressed {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 #c82333, stop:1 #bd2130);
     border: 1px solid #a71e2a;
+}
+
+/* Professional exit button - circular with subtle styling */
+QPushButton[buttonType="exit"] {
+    background-color: #3d3d3d;
+    color: #e0e0e0;
+    border: 1px solid #4d4d4d;
+    border-radius: 14px;
+    font-size: 16pt;
+    font-weight: 300;
+    padding: 0px;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+    max-height: 28px;
+}
+
+QPushButton[buttonType="exit"]:hover {
+    background-color: #4d4d4d;
+    border-color: #5d5d5d;
+    color: #ffffff;
+}
+
+QPushButton[buttonType="exit"]:pressed {
+    background-color: #2d2d2d;
+    border-color: #3d3d3d;
+}
+
+QPushButton[buttonType="exit"]:focus {
+    outline: 2px solid #40a8ff;
+    outline-offset: 2px;
 }
 """
 
@@ -449,6 +497,37 @@ QGroupBox::title {
     subcontrol-origin: margin;
     left: 12px;
     padding: 0px 6px;
+}
+
+/* Professional exit button - circular with subtle styling */
+QPushButton[buttonType="exit"] {
+    background-color: #e0e0e0;
+    color: #1e1e1e;
+    border: 1px solid #d0d0d0;
+    border-radius: 14px;
+    font-size: 16pt;
+    font-weight: 300;
+    padding: 0px;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+    max-height: 28px;
+}
+
+QPushButton[buttonType="exit"]:hover {
+    background-color: #d0d0d0;
+    border-color: #b0b0b0;
+    color: #000000;
+}
+
+QPushButton[buttonType="exit"]:pressed {
+    background-color: #c0c0c0;
+    border-color: #a0a0a0;
+}
+
+QPushButton[buttonType="exit"]:focus {
+    outline: 2px solid #0078d4;
+    outline-offset: 2px;
 }
 """
 

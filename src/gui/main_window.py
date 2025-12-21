@@ -12,12 +12,17 @@ import time
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal, Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QSpacerItem,
     QVBoxLayout,
     QWidget,
+    QWidgetAction,
 )
 
 from src.core.abstractive.summarizer import AbstractiveSummarizer
@@ -279,10 +284,10 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Main layout with efficient spacing
+        # Main layout with enhanced professional spacing
         layout = QVBoxLayout()
-        layout.setSpacing(12)  # Reduced from 20 for better space efficiency
-        layout.setContentsMargins(16, 12, 16, 12)  # Tighter margins
+        layout.setSpacing(16)  # Better spacing for visual breathing room
+        layout.setContentsMargins(20, 16, 20, 16)  # Generous margins for modern look
         
         # File upload
         self.file_upload = FileUploadWidget()
@@ -295,20 +300,23 @@ class MainWindow(QMainWindow):
         self.mode_selector = ModeSelectorWidget()
         layout.addWidget(self.mode_selector)
         
-        # Summarize button - compact and professional with professional icon
+        # Summarize button - enhanced professional styling with depth
         self.summarize_button = QPushButton("⚡ Summarize")
         self.summarize_button.setEnabled(False)  # Disabled until file is selected
         self.summarize_button.clicked.connect(self._on_summarize)
-        self.summarize_button.setFixedHeight(40)  # Compact height
+        self.summarize_button.setFixedHeight(44)  # Slightly taller for better presence
         self.summarize_button.setStyleSheet("""
             QPushButton {
-                font-size: 11pt;
-                font-weight: 600;
-                padding: 10px 20px;
-                border-radius: 6px;
+                font-size: 12pt;
+                font-weight: 700;
+                padding: 12px 28px;
+                border-radius: 8px;
+                letter-spacing: 0.5px;
             }
             QPushButton:disabled {
-                opacity: 0.6;
+                opacity: 0.5;
+                background-color: #3d3d3d;
+                color: #6c757d;
             }
         """)
         layout.addWidget(self.summarize_button)
@@ -328,8 +336,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.progress_indicator)
         
         # Summary display - make it expandable to use available space
+        # Hidden initially, shown only when summary is generated
         self.summary_display = SummaryDisplayWidget()
         layout.addWidget(self.summary_display, 1)  # Give it stretch factor to expand
+        self.summary_display.hide()  # Hide initially until summary is generated
         
         central_widget.setLayout(layout)
         
@@ -348,7 +358,7 @@ class MainWindow(QMainWindow):
         self.update_timer.setInterval(500)  # Update every 500ms
     
     def _setup_menu(self):
-        """Set up menu bar."""
+        """Set up menu bar with badges and exit button."""
         menubar = self.menuBar()
         
         # File menu
@@ -372,6 +382,179 @@ class MainWindow(QMainWindow):
         about_action = QAction("About", self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
+        
+        # Create right-side widget container for badges and exit button
+        right_widget = QWidget()
+        right_layout = QHBoxLayout()
+        right_layout.setContentsMargins(8, 4, 8, 4)
+        right_layout.setSpacing(8)
+        
+        # Privacy badge - our biggest differentiator
+        privacy_badge = QLabel("🔒 Privacy-First")
+        privacy_badge.setToolTip("All processing occurs locally on your device. No data leaves your system.")
+        privacy_badge.setStyleSheet("""
+            QLabel {
+                background-color: #28a745;
+                color: white;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+        """)
+        
+        # Offline assurance badge - our biggest differentiator
+        offline_badge = QLabel("📡 Fully Offline")
+        offline_badge.setToolTip("No internet connection required. All AI processing happens locally.")
+        offline_badge.setStyleSheet("""
+            QLabel {
+                background-color: #0078d4;
+                color: white;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+        """)
+        
+        right_layout.addWidget(privacy_badge)
+        right_layout.addWidget(offline_badge)
+        
+        right_widget.setLayout(right_layout)
+        
+        # Make sure the widget is visible and properly sized
+        right_widget.setMinimumHeight(32)
+        right_widget.setMaximumHeight(32)
+        
+        # Add badges to menu bar using QWidgetAction
+        widget_action = QWidgetAction(self)
+        widget_action.setDefaultWidget(right_widget)
+        menubar.addSeparator()
+        menubar.addAction(widget_action)
+        
+        # Create user icon as overlay widget (separate from menu bar for better visibility)
+        self._setup_user_icon_overlay()
+    
+    def _setup_user_icon_overlay(self):
+        """Set up user icon as an overlay widget in the top-right corner."""
+        # Create professional user icon button with dropdown menu
+        # Using a styled circular button with user silhouette
+        self.user_button = QPushButton(self)
+        self.user_button.setFixedSize(36, 36)
+        self.user_button.setToolTip("User menu - Hover or click for options")
+        # Create professional user icon using Unicode and styling
+        # Create professional user icon - circular avatar style with gradient
+        self.user_button.setText("")  # No text, we'll add icon via label
+        self.user_button.setStyleSheet("""
+            QPushButton {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
+                    stop:0 #5a5a5a, stop:0.5 #4a4a4a, stop:1 #3a3a3a);
+                border: 2px solid #4d4d4d;
+                border-radius: 18px;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
+                    stop:0 #6a6a6a, stop:0.5 #5a5a5a, stop:1 #4a4a4a);
+                border: 2px solid #60b8ff;
+            }
+            QPushButton:pressed {
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
+                    stop:0 #3a3a3a, stop:0.5 #2a2a2a, stop:1 #1a1a1a);
+                border: 2px solid #0078d4;
+            }
+        """)
+        
+        # Add professional user icon using styled text approach
+        # Create a professional circular avatar with user initial
+        user_icon_label = QLabel(self.user_button)
+        # Use "U" for User - styled professionally as an avatar
+        user_icon_label.setText("U")
+        user_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        user_icon_label.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
+                color: #ffffff;
+                font-size: 18pt;
+                font-weight: 700;
+                border: none;
+                padding: 0px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+        """)
+        user_icon_label.setGeometry(0, 0, 36, 36)
+        user_icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        
+        # Create user menu with exit option
+        self.user_menu = QMenu(self)
+        self.user_menu.setStyleSheet("""
+            QMenu {
+                background-color: #252526;
+                color: #e0e0e0;
+                border: 1px solid #3d3d3d;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 8px 24px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #0078d4;
+                color: white;
+            }
+        """)
+        exit_action = QAction("🚪 Exit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+        self.user_menu.addAction(exit_action)
+        
+        # Timer for hover delay
+        self.user_hover_timer = QTimer()
+        self.user_hover_timer.setSingleShot(True)
+        self.user_hover_timer.timeout.connect(self._show_user_menu)
+        
+        # Install event filter for hover detection
+        self.user_button.installEventFilter(self)
+        self.user_button.clicked.connect(self._show_user_menu)
+        
+        # Position the button in top-right corner
+        self._position_user_icon()
+        
+        # Update position on window resize - install event filter on main window
+        self.installEventFilter(self)
+    
+    def _position_user_icon(self):
+        """Position user icon in the top-right corner - responsive to window size changes."""
+        if not hasattr(self, 'user_button') or not self.user_button:
+            return
+            
+        button_size = 36
+        margin = 10
+        
+        # Get current window geometry
+        window_width = self.width()
+        
+        # Calculate position - always top-right corner, regardless of window size
+        x = window_width - button_size - margin
+        y = margin  # Small margin from top
+        
+        # Ensure button stays within window bounds
+        if x < 0:
+            x = margin
+        if y < 0:
+            y = margin
+        
+        # Move and show the button
+        self.user_button.move(int(x), int(y))
+        self.user_button.raise_()  # Bring to front
+        self.user_button.show()
+    
+    def _show_user_menu(self):
+        """Show user menu at the user button position."""
+        # Position menu below the button
+        button_pos = self.user_button.mapToGlobal(self.user_button.rect().bottomLeft())
+        self.user_menu.exec(button_pos)
     
     def _apply_theme(self):
         """Apply dark theme."""
@@ -555,6 +738,8 @@ class MainWindow(QMainWindow):
         # Keep timer running to update memory display
         # Timer will be stopped when file is selected/cleared or new summarization starts
         
+        # Show summary display and set summary
+        self.summary_display.show()
         self.summary_display.set_summary(summary)
         
         # Re-enable all components
@@ -612,8 +797,9 @@ class MainWindow(QMainWindow):
         Reset all fields when a new file is selected or current file is removed.
         Clears summary, hides progress, resets status bar.
         """
-        # Clear summary display
+        # Clear and hide summary display
         self.summary_display.clear_summary()
+        self.summary_display.hide()
         
         # Hide progress indicator and reset timing
         self.progress_indicator.hide_progress()
@@ -651,6 +837,31 @@ class MainWindow(QMainWindow):
             """
         )
     
+    def eventFilter(self, obj, event):
+        """Event filter for user button hover detection."""
+        if obj == self.user_button:
+            if event.type() == event.Type.Enter:
+                # Start timer to show menu after short delay
+                self.user_hover_timer.start(300)  # 300ms delay
+            elif event.type() == event.Type.Leave:
+                # Cancel timer if mouse leaves
+                self.user_hover_timer.stop()
+        return super().eventFilter(obj, event)
+    
+    def resizeEvent(self, event):
+        """Handle window resize to reposition user icon dynamically."""
+        super().resizeEvent(event)
+        if hasattr(self, 'user_button') and self.user_button:
+            # Use QTimer to delay repositioning slightly to ensure accurate window size
+            QTimer.singleShot(10, self._position_user_icon)
+    
+    def showEvent(self, event):
+        """Handle window show event to position user icon when window is displayed."""
+        super().showEvent(event)
+        if hasattr(self, 'user_button') and self.user_button:
+            # Position user icon after window is shown
+            QTimer.singleShot(50, self._position_user_icon)
+    
     def closeEvent(self, event):
         """Handle window close event."""
         # Stop worker if running
@@ -663,4 +874,18 @@ class MainWindow(QMainWindow):
             self.abstractive_summarizer.cleanup()
         
         event.accept()
+    
+    def resizeEvent(self, event):
+        """Handle window resize to reposition user icon dynamically."""
+        super().resizeEvent(event)
+        if hasattr(self, 'user_button') and self.user_button:
+            # Use QTimer to delay repositioning slightly to ensure accurate window size
+            QTimer.singleShot(10, self._position_user_icon)
+    
+    def showEvent(self, event):
+        """Handle window show event to position user icon when window is displayed."""
+        super().showEvent(event)
+        if hasattr(self, 'user_button') and self.user_button:
+            # Position user icon after window is shown
+            QTimer.singleShot(50, self._position_user_icon)
 

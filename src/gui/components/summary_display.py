@@ -55,10 +55,11 @@ class SummaryDisplayWidget(QWidget):
         header_layout.setSpacing(12)
         header_layout.setContentsMargins(0, 0, 0, 4)
         
-        # Stats label - compact display
-        self.stats_label = QLabel("Words: 0 | Chars: 0")
+        # Stats label - compact display (hidden initially when no file is selected)
+        self.stats_label = QLabel("")
         self.stats_label.setStyleSheet("color: #808080; font-size: 9pt; padding: 4px 0px;")
         self.stats_label.setMinimumWidth(120)  # Fixed width to prevent layout shifts
+        self.stats_label.hide()  # Hide initially until a file is selected
         
         # Action buttons - compact and grouped
         button_layout = QHBoxLayout()
@@ -107,20 +108,25 @@ class SummaryDisplayWidget(QWidget):
         header_layout.addStretch()
         header_layout.addLayout(button_layout)
         
-        # Text display with improved styling - proper text handling
+        # Text display with enhanced professional styling - card-like appearance
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.text_display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)  # Wrap at widget width
         self.text_display.setStyleSheet("""
             QTextEdit {
                 font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
-                font-size: 10.5pt;
-                line-height: 1.5;
-                padding: 12px 14px;
+                font-size: 11pt;
+                line-height: 1.7;
+                padding: 16px 18px;
                 background-color: #252525;
-                border: 2px solid #3d3d3d;
-                border-radius: 6px;
+                border: 1px solid #3d3d3d;
+                border-radius: 10px;
                 color: #e0e0e0;
+                /* Enhanced depth effect */
+                border-top: 1px solid #4d4d4d;
+                border-left: 1px solid #4d4d4d;
+                border-bottom: 2px solid #1a1a1a;
+                border-right: 2px solid #1a1a1a;
             }
         """)
         
@@ -173,15 +179,22 @@ class SummaryDisplayWidget(QWidget):
         """
         Update word and character count statistics.
         Compact format for efficient space usage.
+        Hide stats when no file is selected (counts are 0).
         """
         text = self.summary_text
         word_count = len(text.split()) if text else 0
         char_count = len(text) if text else 0
         
-        # Compact format following HCI principles
-        self.stats_label.setText(
-            f"Words: {word_count:,} | Chars: {char_count:,}"
-        )
+        # Hide stats label when no file is selected (both counts are 0)
+        if word_count == 0 and char_count == 0:
+            self.stats_label.setText("")
+            self.stats_label.hide()
+        else:
+            # Compact format following HCI principles
+            self.stats_label.setText(
+                f"Words: {word_count:,} | Chars: {char_count:,}"
+            )
+            self.stats_label.show()
     
     def _copy_to_clipboard(self):
         """

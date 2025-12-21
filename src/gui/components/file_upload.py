@@ -156,18 +156,25 @@ class FileUploadWidget(QWidget):
         self.instruction_label.setStyleSheet("""
             QLabel {
                 color: #808080;
-                font-size: 11pt;
-                padding: 24px 16px;
+                font-size: 11.5pt;
+                padding: 32px 20px;
                 border: 2px dashed #3d3d3d;
-                border-radius: 8px;
-                background-color: #2d2d2d;
-                min-height: 60px;
+                border-radius: 12px;
+                background-color: #252525;
+                min-height: 80px;
+                font-weight: 500;
+                /* Enhanced card-like depth */
+                border-top: 2px dashed #4d4d4d;
+                border-left: 2px dashed #4d4d4d;
+                border-bottom: 2px dashed #2d2d2d;
+                border-right: 2px dashed #2d2d2d;
             }
             QLabel:hover {
-                color: #a0a0a0;
+                color: #b0b0b0;
                 border: 2px dashed #5d5d5d;
-                background-color: #323232;
-                cursor: pointer;
+                background-color: #2a2a2a;
+                border-top: 2px dashed #60b8ff;
+                border-left: 2px dashed #60b8ff;
             }
         """)
         
@@ -200,7 +207,6 @@ class FileUploadWidget(QWidget):
             QLabel:hover {
                 background-color: #323232;
                 border: 2px solid #4d4d4d;
-                cursor: pointer;
             }
         """)
         self.validation_status = ""  # Track validation status: "", "validating", "valid", "invalid", "warning"

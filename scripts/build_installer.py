@@ -23,7 +23,8 @@ def create_spec_file():
     icon_path = PathLib(__file__).parent.parent / "resources" / "icons" / "app.ico"
     icon_str = f"'{icon_path}'" if icon_path.exists() else "None"
     
-    spec_content = """# -*- mode: python ; coding: utf-8 -*-
+    # Use f-string for proper formatting
+    spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
 
 block_cipher = None
 
@@ -47,7 +48,6 @@ a = Analysis(
         'reportlab',
     ],
     hookspath=[],
-    hooksconfig={{}},
     runtime_hooks=[],
     excludes=[],
     win_no_prefer_redirects=False,
@@ -78,7 +78,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=""" + icon_str + """,
+    icon={icon_str},
 )
 """
     
@@ -207,4 +207,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
