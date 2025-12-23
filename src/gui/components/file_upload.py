@@ -147,34 +147,31 @@ class FileUploadWidget(QWidget):
         layout.setSpacing(8)  # Reduced spacing for efficiency
         layout.setContentsMargins(0, 0, 0, 0)  # Remove internal margins for consistent width
         
-        # Instructions label with modern styling (shown when no file selected)
-        # Made clickable to browse files
+        # Instructions label with modern card-like styling (shown when no file selected)
+        # Made clickable to browse files - following affordance principles
         self.instruction_label = ClickableLabel("📄 Drag and drop a PDF file here\nor click to browse")
         self.instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.instruction_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.instruction_label.clicked.connect(self._browse_files)
         self.instruction_label.setStyleSheet("""
             QLabel {
-                color: #808080;
-                font-size: 11.5pt;
-                padding: 32px 20px;
-                border: 2px dashed #3d3d3d;
+                color: #9ca3af;
+                font-size: 10.5pt;
+                padding: 16px 18px;
+                border: 3px dashed #3a3d4a;
                 border-radius: 12px;
-                background-color: #252525;
-                min-height: 80px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1c1e26, stop:1 #181a24);
+                min-height: 60px;
+                max-height: 70px;
                 font-weight: 500;
-                /* Enhanced card-like depth */
-                border-top: 2px dashed #4d4d4d;
-                border-left: 2px dashed #4d4d4d;
-                border-bottom: 2px dashed #2d2d2d;
-                border-right: 2px dashed #2d2d2d;
+                letter-spacing: 0.3px;
             }
             QLabel:hover {
-                color: #b0b0b0;
-                border: 2px dashed #5d5d5d;
-                background-color: #2a2a2a;
-                border-top: 2px dashed #60b8ff;
-                border-left: 2px dashed #60b8ff;
+                color: #e8eaed;
+                border: 3px dashed #7c8ff5;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #22242e, stop:1 #1c1e26);
             }
         """)
         
@@ -188,7 +185,7 @@ class FileUploadWidget(QWidget):
         file_display_layout = QHBoxLayout()
         file_display_layout.setSpacing(8)  # Reduced spacing for compact layout
         
-        # File icon/name label with proper text handling and validation status
+        # File icon/name label with modern card design and validation status
         self.file_label = ClickableLabel("No file selected")
         self.file_label.setWordWrap(True)  # Allow wrapping for very long names
         self.file_label.setTextFormat(Qt.TextFormat.RichText)
@@ -197,52 +194,54 @@ class FileUploadWidget(QWidget):
         self.file_label.clicked.connect(self._browse_files)
         self.file_label.setStyleSheet("""
             QLabel {
-                color: #4ec9b0;
-                font-size: 10pt;
-                padding: 10px 12px;
-                background-color: #2d2d2d;
-                border: 2px solid #3d3d3d;
-                border-radius: 6px;
+                color: #7c8ff5;
+                font-size: 10.5pt;
+                padding: 14px 16px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1f212b, stop:1 #1a1c26);
+                border: 2px solid #3a3d4a;
+                border-radius: 12px;
+                font-weight: 500;
             }
             QLabel:hover {
-                background-color: #323232;
-                border: 2px solid #4d4d4d;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #22242e, stop:1 #1c1e26);
+                border: 2px solid #7c8ff5;
             }
         """)
         self.validation_status = ""  # Track validation status: "", "validating", "valid", "invalid", "warning"
         
-        # Remove button (X button to clear selection) - compact size with semantic red color
+        # Remove button (X button to clear selection) - modern with semantic color
         self.remove_button = QPushButton("✕")
         self.remove_button.setToolTip("Remove selected file")
-        self.remove_button.setFixedSize(24, 24)  # Compact size to fit component
+        self.remove_button.setFixedSize(28, 28)  # Slightly larger for better Fitts's Law
         self.remove_button.setMinimumSize(0, 0)  # Override Qt's minimum button size
         self.remove_button.setProperty("buttonType", "danger")  # Apply semantic color
         self.remove_button.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #dc3545, stop:1 #c82333);
+                    stop:0 #fc8181, stop:1 #f56565);
                 color: white;
-                border: 1px solid #bd2130;
-                border-radius: 5px;
-                font-size: 12pt;
+                border: 1px solid #feb2b2;
+                border-radius: 6px;
+                font-size: 13pt;
                 font-weight: bold;
                 padding: 0px;
                 margin: 0px;
             }
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #e4606d, stop:1 #dc3545);
-                border: 1px solid #c82333;
-                border-top: 2px solid #ff6b7a;
+                    stop:0 #feb2b2, stop:1 #fc8181);
+                border: 1px solid #fec2c2;
             }
             QPushButton:pressed {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #c82333, stop:1 #bd2130);
-                border: 1px solid #a71e2a;
+                    stop:0 #e53e3e, stop:1 #c53030);
+                border: 1px solid #e53e3e;
             }
             QPushButton:focus {
-                outline: 2px solid #ff6b7a;
-                outline-offset: 1px;
+                outline: 2px solid rgba(254, 178, 178, 0.6);
+                outline-offset: 2px;
             }
         """)
         self.remove_button.clicked.connect(self.clear_selection)
@@ -271,28 +270,33 @@ class FileUploadWidget(QWidget):
                 event.acceptProposedAction()
                 # Highlight the appropriate widget based on current state
                 if self.instruction_label.isVisible():
-                    # No file selected - highlight instruction label with enhanced hover effect
+                    # No file selected - highlight instruction label with vibrant hover effect
                     self.instruction_label.setStyleSheet("""
                         QLabel {
-                            color: #0078d4;
-                            font-size: 12pt;
-                            padding: 30px 20px;
-                            border: 2px dashed #0078d4;
-                            border-radius: 10px;
-                            background-color: #1e3a5f;
-                            min-height: 80px;
+                            color: #ffffff;
+                            font-size: 11pt;
+                            padding: 16px 18px;
+                            border: 3px dashed #7c8ff5;
+                            border-radius: 12px;
+                            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #2a2f4a, stop:1 #1f2440);
+                            min-height: 60px;
+                            max-height: 70px;
+                            font-weight: 600;
                         }
                     """)
                 else:
                     # File already selected - highlight file info container
                     self.file_label.setStyleSheet("""
                         QLabel {
-                            color: #0078d4;
+                            color: #ffffff;
                             font-size: 11pt;
-                            padding: 12px;
-                            background-color: #2d2d2d;
-                            border: 2px solid #0078d4;
-                            border-radius: 8px;
+                            padding: 14px 16px;
+                            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #2a2f4a, stop:1 #1f2440);
+                            border: 2px solid #7c8ff5;
+                            border-radius: 12px;
+                            font-weight: 600;
                         }
                     """)
     
@@ -305,25 +309,31 @@ class FileUploadWidget(QWidget):
             # Reset instruction label styling
             self.instruction_label.setStyleSheet("""
                 QLabel {
-                    color: #808080;
-                    font-size: 12pt;
-                    padding: 30px 20px;
-                    border: 2px dashed #3d3d3d;
-                    border-radius: 10px;
-                    background-color: #2d2d2d;
-                    min-height: 80px;
+                    color: #9ca3af;
+                    font-size: 10.5pt;
+                    padding: 16px 18px;
+                    border: 3px dashed #3a3d4a;
+                    border-radius: 12px;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #1c1e26, stop:1 #181a24);
+                    min-height: 60px;
+                    max-height: 70px;
+                    font-weight: 500;
+                    letter-spacing: 0.3px;
                 }
             """)
         else:
             # Reset file label styling
             self.file_label.setStyleSheet("""
                 QLabel {
-                    color: #4ec9b0;
-                    font-size: 11pt;
-                    padding: 12px;
-                    background-color: #2d2d2d;
-                    border: 2px solid #3d3d3d;
-                    border-radius: 8px;
+                    color: #7c8ff5;
+                    font-size: 10.5pt;
+                    padding: 14px 16px;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #1f212b, stop:1 #1a1c26);
+                    border: 2px solid #3a3d4a;
+                    border-radius: 12px;
+                    font-weight: 500;
                 }
             """)
     
@@ -348,25 +358,31 @@ class FileUploadWidget(QWidget):
             # Reset instruction label styling
             self.instruction_label.setStyleSheet("""
                 QLabel {
-                    color: #808080;
-                    font-size: 12pt;
-                    padding: 30px 20px;
-                    border: 2px dashed #3d3d3d;
-                    border-radius: 10px;
-                    background-color: #2d2d2d;
-                    min-height: 80px;
+                    color: #9ca3af;
+                    font-size: 10.5pt;
+                    padding: 16px 18px;
+                    border: 3px dashed #3a3d4a;
+                    border-radius: 12px;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #1c1e26, stop:1 #181a24);
+                    min-height: 60px;
+                    max-height: 70px;
+                    font-weight: 500;
+                    letter-spacing: 0.3px;
                 }
             """)
         else:
             # Reset file label styling (file was replaced)
             self.file_label.setStyleSheet("""
                 QLabel {
-                    color: #4ec9b0;
-                    font-size: 11pt;
-                    padding: 12px;
-                    background-color: #2d2d2d;
-                    border: 2px solid #3d3d3d;
-                    border-radius: 8px;
+                    color: #7c8ff5;
+                    font-size: 10.5pt;
+                    padding: 14px 16px;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #1f212b, stop:1 #1a1c26);
+                    border: 2px solid #3a3d4a;
+                    border-radius: 12px;
+                    font-weight: 500;
                 }
             """)
     
@@ -552,22 +568,22 @@ class FileUploadWidget(QWidget):
         available_width = max(300, self.width() - 100)
         elided_name = font_metrics.elidedText(file_name, Qt.TextElideMode.ElideMiddle, available_width)
         
-        # Choose status icon
+        # Choose status icon with modern colors matching new theme
         if status == "validating":
             status_icon = "⏳"
-            status_color = "#808080"
+            status_color = "#9ca3af"
         elif status == "valid":
             status_icon = "✓"
-            status_color = "#28a745"
+            status_color = "#48bb78"  # Vibrant emerald green
         elif status == "invalid":
             status_icon = "✗"
-            status_color = "#dc3545"
+            status_color = "#fc8181"  # Vibrant rose red
         elif status == "warning":
             status_icon = "⚠"
-            status_color = "#ffc107"
+            status_color = "#f6ad55"  # Vibrant orange
         else:
             status_icon = ""
-            status_color = "#4ec9b0"
+            status_color = "#7c8ff5"  # Vibrant blue-purple
         
         # Build label text with HTML formatting
         if status_icon:

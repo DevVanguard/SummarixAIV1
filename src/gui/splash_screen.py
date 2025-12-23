@@ -105,7 +105,7 @@ class SplashScreen(QWidget):
     """Custom splash screen with progress bar."""
     
     def __init__(self):
-        """Initialize splash screen."""
+        """Initialize splash screen with modern design."""
         super().__init__()
         
         self.setWindowFlags(
@@ -115,7 +115,7 @@ class SplashScreen(QWidget):
             Qt.WindowType.Tool
         )
         
-        self.setFixedSize(600, 400)
+        self.setFixedSize(650, 450)  # Slightly larger for better presence
         self._setup_ui()
         self.loader: Optional[StartupLoader] = None
         
@@ -123,31 +123,68 @@ class SplashScreen(QWidget):
         self._center_on_screen()
     
     def _setup_ui(self):
-        """Set up splash screen UI."""
+        """Set up splash screen UI with modern branding."""
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(24)
+        layout.setContentsMargins(50, 50, 50, 50)
         
-        # App name
-        title_label = QLabel(Config.APP_NAME)
+        # App name with icon and modern styling
+        title_label = QLabel(f"✨ {Config.APP_NAME}")
         title_font = QFont()
-        title_font.setPointSize(24)
+        title_font.setPointSize(32)
         title_font.setBold(True)
+        title_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("color: #0078d4;")
+        title_label.setStyleSheet("""
+            QLabel {
+                color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #667eea, stop:0.5 #7c8ff5, stop:1 #764ba2);
+                padding: 10px;
+            }
+        """)
         
-        # Version
-        version_label = QLabel(f"Version {Config.APP_VERSION}")
+        # Tagline
+        tagline_label = QLabel("AI-Powered Document Summarization")
+        tagline_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tagline_label.setStyleSheet("""
+            QLabel {
+                color: #9ca3af;
+                font-size: 13pt;
+                font-weight: 500;
+                letter-spacing: 0.8px;
+            }
+        """)
+        
+        # Version with modern badge
+        version_label = QLabel(f"v{Config.APP_VERSION}")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        version_label.setStyleSheet("color: #808080; font-size: 12pt;")
+        version_label.setStyleSheet("""
+            QLabel {
+                color: #7c8ff5;
+                font-size: 11pt;
+                font-weight: 600;
+                padding: 4px 14px;
+                background-color: #1f212b;
+                border-radius: 12px;
+                border: 1px solid #3a3d4a;
+            }
+        """)
         
-        # Status label
-        self.status_label = QLabel("Initializing...")
+        # Status label with modern styling
+        self.status_label = QLabel("Initializing application...")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #e0e0e0; font-size: 11pt; margin-top: 20px;")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #e8eaed;
+                font-size: 11pt;
+                font-weight: 500;
+                margin-top: 30px;
+                letter-spacing: 0.3px;
+            }
+        """)
         
-        # Progress bar
+        # Progress bar with modern gradient
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -155,31 +192,41 @@ class SplashScreen(QWidget):
         self.progress_bar.setFormat("%p%")
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                border: 2px solid #3d3d3d;
-                border-radius: 5px;
+                border: none;
+                border-radius: 12px;
                 text-align: center;
-                background-color: #2d2d2d;
-                color: #e0e0e0;
-                height: 25px;
+                background-color: #1c1e26;
+                color: #e8eaed;
+                height: 32px;
                 font-size: 10pt;
+                font-weight: 600;
             }
             QProgressBar::chunk {
-                background-color: #0078d4;
-                border-radius: 3px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #667eea, stop:0.3 #7c8ff5, stop:0.7 #5568d3, stop:1 #764ba2);
+                border-radius: 10px;
             }
         """)
         
-        # Layout
+        # Layout with better spacing
         layout.addStretch()
         layout.addWidget(title_label)
-        layout.addWidget(version_label)
+        layout.addWidget(tagline_label)
+        layout.addSpacing(8)
+        layout.addWidget(version_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()
         layout.addWidget(self.status_label)
         layout.addWidget(self.progress_bar)
         layout.addStretch()
         
         self.setLayout(layout)
-        self.setStyleSheet("background-color: #1e1e1e;")
+        # Modern background with gradient
+        self.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #0a0e27, stop:0.5 #161b33, stop:1 #0f1428);
+            }
+        """)
     
     def _center_on_screen(self):
         """Center splash screen on screen."""

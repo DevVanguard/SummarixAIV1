@@ -9,11 +9,13 @@ from enum import Enum
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QRadioButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -46,95 +48,171 @@ class ModeSelectorWidget(QWidget):
     
     def _setup_ui(self):
         """
-        Set up all the UI components - mode selection and length options.
-        Efficient layout following HCI principles.
+        Set up all the UI components - mode selection with card-based design.
+        Enhanced following HCI principles:
+        - Clear visual hierarchy with icons
+        - Card-based design for each mode
+        - Better affordances with hover states
         """
         layout = QVBoxLayout()
-        layout.setSpacing(8)  # Tighter spacing
+        layout.setSpacing(0)  # No extra spacing, GroupBox handles it
         layout.setContentsMargins(0, 0, 0, 0)  # Consistent margins for alignment
         
-        # Main group box for mode selection
-        group_box = QGroupBox("Summarization Mode")
+        # Main group box for mode selection with modern styling
+        group_box = QGroupBox("⚡ Summarization Mode")
         group_layout = QVBoxLayout()
-        group_layout.setSpacing(10)  # Reduced spacing
-        group_layout.setContentsMargins(12, 12, 12, 12)  # Tighter margins
+        group_layout.setSpacing(12)  # Better breathing room between cards
+        group_layout.setContentsMargins(16, 8, 16, 16)  # Reduced top padding since GroupBox title uses space
         
-        # Extractive mode option
-        extractive_layout = QHBoxLayout()
-        self.extractive_radio = QRadioButton("Extractive (TextRank)")
+        # Button group to ensure radio buttons are mutually exclusive
+        self.mode_button_group = QButtonGroup(self)
+        
+        # Extractive mode option with card-like container
+        extractive_container = QWidget()
+        extractive_container.setObjectName("modeCard")
+        extractive_container.setStyleSheet("""
+            QWidget#modeCard {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1f212b, stop:1 #1a1c26);
+                border: 2px solid #3a3d4a;
+                border-radius: 12px;
+            }
+            QWidget#modeCard:hover {
+                border: 2px solid #7c8ff5;
+            }
+        """)
+        extractive_layout = QVBoxLayout()
+        extractive_layout.setSpacing(6)
+        extractive_layout.setContentsMargins(12, 10, 12, 10)
+        
+        # Horizontal layout for radio button and description
+        extractive_top_layout = QHBoxLayout()
+        extractive_top_layout.setSpacing(12)
+        
+        self.extractive_radio = QRadioButton("⚡ Extractive")
         self.extractive_radio.setChecked(True)  # Default selection
         self.extractive_radio.toggled.connect(self._on_mode_changed)
+        self.extractive_radio.setStyleSheet("""
+            QRadioButton {
+                font-weight: 600;
+                font-size: 10.5pt;
+                background: transparent;
+                border: none;
+                padding: 2px 0px;
+            }
+        """)
+        self.mode_button_group.addButton(self.extractive_radio)
         
-        extractive_desc = QLabel(
-            "Extracts key sentences from the document.\n"
-            "Faster, preserves original wording."
-        )
+        extractive_desc = QLabel("Fast • Key sentences • Original wording")
         extractive_desc.setWordWrap(True)
-        extractive_desc.setStyleSheet("color: #808080; font-size: 9pt;")
+        extractive_desc.setStyleSheet("""
+            QLabel {
+                color: #9ca3af;
+                font-size: 9pt;
+                background: transparent;
+                border: none;
+            }
+        """)
+        
+        extractive_top_layout.addWidget(self.extractive_radio, 0)
+        extractive_top_layout.addWidget(extractive_desc, 1)
         
         # Info label for disabled length selector
-        self.length_info_label = QLabel("(Length options only available for Abstractive mode)")
+        self.length_info_label = QLabel("💡 Length options only available for Abstractive mode")
         self.length_info_label.setWordWrap(True)
-        self.length_info_label.setStyleSheet("color: #6c757d; font-size: 8pt; font-style: italic; padding: 2px 0px;")
+        self.length_info_label.setStyleSheet("""
+            QLabel {
+                color: #7c8ff5;
+                font-size: 8pt;
+                font-style: italic;
+                padding: 4px 0px 0px 0px;
+                background: transparent;
+                border: none;
+            }
+        """)
         self.length_info_label.hide()  # Will show when extractive is selected
         
-        extractive_layout.addWidget(self.extractive_radio)
-        extractive_layout.addWidget(extractive_desc)
-        extractive_layout.addStretch()
+        extractive_layout.addLayout(extractive_top_layout)
+        extractive_layout.addWidget(self.length_info_label)
+        extractive_container.setLayout(extractive_layout)
         
-        # Abstractive mode option
+        # Abstractive mode option with card-like container
+        abstractive_container = QWidget()
+        abstractive_container.setObjectName("modeCard")
+        abstractive_container.setStyleSheet("""
+            QWidget#modeCard {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1f212b, stop:1 #1a1c26);
+                border: 2px solid #3a3d4a;
+                border-radius: 12px;
+            }
+            QWidget#modeCard:hover {
+                border: 2px solid #7c8ff5;
+            }
+        """)
         abstractive_layout = QVBoxLayout()
-        abstractive_header_layout = QHBoxLayout()
+        abstractive_layout.setSpacing(6)
+        abstractive_layout.setContentsMargins(12, 10, 12, 10)
         
-        self.abstractive_radio = QRadioButton("Abstractive (T5)")
+        # Horizontal layout for radio button, description, and length selector
+        abstractive_top_layout = QHBoxLayout()
+        abstractive_top_layout.setSpacing(12)
+        
+        self.abstractive_radio = QRadioButton("🤖 Abstractive")
         self.abstractive_radio.toggled.connect(self._on_mode_changed)
+        self.abstractive_radio.setStyleSheet("""
+            QRadioButton {
+                font-weight: 600;
+                font-size: 10.5pt;
+                background: transparent;
+                border: none;
+                padding: 2px 0px;
+            }
+        """)
+        self.mode_button_group.addButton(self.abstractive_radio)
         
-        abstractive_desc = QLabel(
-            "Generates new summary text using AI.\n"
-            "Slower, requires model loading, produces more natural summaries."
-        )
+        abstractive_desc = QLabel("AI-powered • Natural language • Concise")
         abstractive_desc.setWordWrap(True)
-        abstractive_desc.setStyleSheet("color: #808080; font-size: 9pt;")
+        abstractive_desc.setStyleSheet("""
+            QLabel {
+                color: #9ca3af;
+                font-size: 9pt;
+                background: transparent;
+                border: none;
+            }
+        """)
         
-        abstractive_header_layout.addWidget(self.abstractive_radio)
-        abstractive_header_layout.addWidget(abstractive_desc)
-        abstractive_header_layout.addStretch()
-        
-        # Summary length selector (only visible for abstractive mode) - compact
-        length_layout = QHBoxLayout()
-        length_layout.setSpacing(8)
-        length_label = QLabel("Length:")
-        length_label.setStyleSheet("color: #e0e0e0; font-size: 9pt; padding: 2px 0px;")
+        # Summary length selector (only for abstractive mode) - on the right side
+        length_label = QLabel("📏 Length:")
+        length_label.setStyleSheet("""
+            QLabel {
+                color: #e8eaed;
+                font-size: 9pt;
+                font-weight: 500;
+                background: transparent;
+                border: none;
+            }
+        """)
         
         self.length_combo = QComboBox()
         self.length_combo.addItems(["Short", "Medium", "Long"])
         self.length_combo.setCurrentText("Medium")  # Default to medium
         self.length_combo.currentTextChanged.connect(self._on_length_changed)
         self.length_combo.setEnabled(False)  # Disabled until abstractive is selected
-        self.length_combo.setFixedHeight(28)  # Compact height
-        self.length_combo.setStyleSheet("""
-            QComboBox {
-                font-size: 9pt;
-                padding: 4px 8px;
-            }
-            QComboBox:disabled {
-                background-color: #2d2d2d;
-                color: #6c757d;
-                border-color: #2d2d2d;
-                opacity: 0.6;
-            }
-        """)
+        self.length_combo.setFixedHeight(34)  # Increased height for visibility
+        self.length_combo.setMinimumWidth(100)  # Compact width
+        # No need to set styleSheet - it will use the theme
         
-        length_layout.addWidget(length_label)
-        length_layout.addWidget(self.length_combo)
-        length_layout.addStretch()
+        abstractive_top_layout.addWidget(self.abstractive_radio, 0)
+        abstractive_top_layout.addWidget(abstractive_desc, 1)
+        abstractive_top_layout.addWidget(length_label, 0)
+        abstractive_top_layout.addWidget(self.length_combo, 0)
         
-        abstractive_layout.addLayout(abstractive_header_layout)
-        abstractive_layout.addLayout(length_layout)
-        abstractive_layout.addWidget(self.length_info_label)
+        abstractive_layout.addLayout(abstractive_top_layout)
+        abstractive_container.setLayout(abstractive_layout)
         
-        group_layout.addLayout(extractive_layout)
-        group_layout.addLayout(abstractive_layout)
+        group_layout.addWidget(extractive_container)
+        group_layout.addWidget(abstractive_container)
         
         group_box.setLayout(group_layout)
         layout.addWidget(group_box)

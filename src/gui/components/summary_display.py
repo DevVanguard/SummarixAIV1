@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QClipboard
 from PyQt6.QtWidgets import (
     QApplication,
@@ -36,44 +36,75 @@ except ImportError:
 class SummaryDisplayWidget(QWidget):
     """Widget for displaying and exporting summaries."""
     
+    refresh_clicked = pyqtSignal()  # Signal emitted when refresh button is clicked
+    
     def __init__(self, parent=None):
         """Initialize summary display widget."""
         super().__init__(parent)
         self.summary_text = ""
+        self.summarization_mode = ""  # Store the mode used for summarization
         self._setup_ui()
     
     def _setup_ui(self):
         """
         Set up the UI components following HCI principles.
-        Efficient layout, proper text handling, compact controls.
+        - Enhanced typography for better readability
+        - Card-based design with elevation
+        - Clear action hierarchy
         """
         layout = QVBoxLayout()
-        layout.setSpacing(8)  # Tighter spacing for efficiency
+        layout.setSpacing(12)  # 8px grid: 1.5 * 8 = 12px
         layout.setContentsMargins(0, 0, 0, 0)  # Consistent margins for alignment
         
-        # Header with stats and actions - compact and efficient
+        # Header with stats and actions - modern spacing
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(12)
-        header_layout.setContentsMargins(0, 0, 0, 4)
+        header_layout.setSpacing(16)
+        header_layout.setContentsMargins(0, 0, 0, 8)
         
-        # Stats label - compact display (hidden initially when no file is selected)
-        self.stats_label = QLabel("")
-        self.stats_label.setStyleSheet("color: #808080; font-size: 9pt; padding: 4px 0px;")
-        self.stats_label.setMinimumWidth(120)  # Fixed width to prevent layout shifts
-        self.stats_label.hide()  # Hide initially until a file is selected
+        # Mode label with modern styling (shows which mode was used)
+        self.mode_label = QLabel("")
+        self.mode_label.setStyleSheet("""
+            QLabel {
+                color: #7c8ff5;
+                font-size: 9pt;
+                font-weight: 600;
+                padding: 5px 12px;
+                background-color: #1c1e26;
+                border-radius: 6px;
+                border: 1px solid #3a3d4a;
+            }
+        """)
+        self.mode_label.hide()  # Hide initially until a summary is generated
         
-        # Action buttons - compact and grouped
+        # Action buttons - modern with icons and better spacing
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(6)  # Tighter button spacing
+        button_layout.setSpacing(8)  # Better spacing
         
-        # Compact button styling
+        # Modern button styling with subtle effects - compact size
         button_style = """
             QPushButton {
-                font-size: 9pt;
-                font-weight: 500;
-                padding: 6px 12px;
+                font-size: 8.5pt;
+                font-weight: 600;
+                padding: 5px 10px;
                 min-height: 28px;
-                border-radius: 5px;
+                border-radius: 6px;
+                letter-spacing: 0.2px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1f212b, stop:1 #1a1c26);
+                border: 1px solid #3a3d4a;
+                color: #e8eaed;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #667eea, stop:1 #5568d3);
+                border: 1px solid #7c8ff5;
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #4c52cc, stop:1 #3d42b8);
+            }
+            QPushButton:disabled {
+                opacity: 0.4;
             }
         """
         
@@ -100,34 +131,42 @@ class SummaryDisplayWidget(QWidget):
         self.export_docx_button.setEnabled(False)
         self.export_docx_button.setStyleSheet(button_style)
         
+        # Add refresh button to reset application
+        self.refresh_button = QPushButton("🔄 Reset")
+        self.refresh_button.setToolTip("Reset to initial state")
+        self.refresh_button.clicked.connect(self._on_refresh)
+        self.refresh_button.setEnabled(False)
+        self.refresh_button.setStyleSheet(button_style)
+        
         button_layout.addWidget(self.copy_button)
         button_layout.addWidget(self.export_txt_button)
         button_layout.addWidget(self.export_pdf_button)
         button_layout.addWidget(self.export_docx_button)
+        button_layout.addWidget(self.refresh_button)
         
-        header_layout.addWidget(self.stats_label)
+        header_layout.addWidget(self.mode_label)
         header_layout.addStretch()
         header_layout.addLayout(button_layout)
         
-        # Text display with enhanced professional styling - card-like appearance
+        # Text display with exceptional typography and card design
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.text_display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)  # Wrap at widget width
         self.text_display.setStyleSheet("""
             QTextEdit {
-                font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
-                font-size: 11pt;
-                line-height: 1.7;
-                padding: 16px 18px;
-                background-color: #252525;
-                border: 1px solid #3d3d3d;
-                border-radius: 10px;
-                color: #e0e0e0;
-                /* Enhanced depth effect */
-                border-top: 1px solid #4d4d4d;
-                border-left: 1px solid #4d4d4d;
-                border-bottom: 2px solid #1a1a1a;
-                border-right: 2px solid #1a1a1a;
+                font-family: 'Segoe UI', 'SF Pro Display', 'Inter', 'Roboto', Arial, sans-serif;
+                font-size: 11.5pt;
+                line-height: 1.75;
+                letter-spacing: 0.02em;
+                padding: 24px 28px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1f212b, stop:1 #1a1c26);
+                border: 2px solid #3a3d4a;
+                border-radius: 14px;
+                color: #e8eaed;
+            }
+            QTextEdit:focus {
+                border: 2px solid #7c8ff5;
             }
         """)
         
@@ -141,17 +180,21 @@ class SummaryDisplayWidget(QWidget):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding
         )
+        # Set minimum height to ensure content is visible
+        self.text_display.setMinimumHeight(200)
     
-    def set_summary(self, text: str):
+    def set_summary(self, text: str, mode: str = ""):
         """
         Set the summary text to display.
         
         Args:
             text: Summary text
+            mode: Summarization mode used ("extractive" or "abstractive")
         """
         self.summary_text = text
+        self.summarization_mode = mode
         self.text_display.setPlainText(text)
-        self._update_stats()
+        self._update_mode_label()
         
         # Enable buttons
         has_text = bool(text.strip())
@@ -159,6 +202,7 @@ class SummaryDisplayWidget(QWidget):
         self.export_txt_button.setEnabled(has_text)
         self.export_pdf_button.setEnabled(has_text)
         self.export_docx_button.setEnabled(has_text)
+        self.refresh_button.setEnabled(has_text)
     
     def get_summary(self) -> str:
         """Get the current summary text."""
@@ -167,35 +211,35 @@ class SummaryDisplayWidget(QWidget):
     def clear_summary(self):
         """Clear the summary display."""
         self.summary_text = ""
+        self.summarization_mode = ""
         self.text_display.clear()
-        self._update_stats()
+        self._update_mode_label()
         
         # Disable buttons
         self.copy_button.setEnabled(False)
         self.export_txt_button.setEnabled(False)
         self.export_pdf_button.setEnabled(False)
         self.export_docx_button.setEnabled(False)
+        self.refresh_button.setEnabled(False)
     
-    def _update_stats(self):
+    def _on_refresh(self):
+        """Handle refresh button click - emit signal to main window."""
+        self.refresh_clicked.emit()
+    
+    def _update_mode_label(self):
         """
-        Update word and character count statistics.
-        Compact format for efficient space usage.
-        Hide stats when no file is selected (counts are 0).
+        Update the mode label to show which summarization mode was used.
         """
-        text = self.summary_text
-        word_count = len(text.split()) if text else 0
-        char_count = len(text) if text else 0
-        
-        # Hide stats label when no file is selected (both counts are 0)
-        if word_count == 0 and char_count == 0:
-            self.stats_label.setText("")
-            self.stats_label.hide()
+        if not self.summarization_mode:
+            self.mode_label.setText("")
+            self.mode_label.hide()
         else:
-            # Compact format following HCI principles
-            self.stats_label.setText(
-                f"Words: {word_count:,} | Chars: {char_count:,}"
-            )
-            self.stats_label.show()
+            # Show the mode with appropriate icon
+            if self.summarization_mode.lower() == "extractive":
+                self.mode_label.setText("⚡ Extractive Mode")
+            else:
+                self.mode_label.setText("🤖 Abstractive Mode")
+            self.mode_label.show()
     
     def _copy_to_clipboard(self):
         """

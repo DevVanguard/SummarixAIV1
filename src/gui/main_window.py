@@ -261,6 +261,7 @@ class MainWindow(QMainWindow):
         
         self.current_file: Optional[Path] = None
         self.worker: Optional[SummarizationWorker] = None
+        self.current_mode: Optional[SummarizationMode] = None  # Store current summarization mode
         
         # Initialize summarizers
         self.extractive_summarizer = TextRankSummarizer()
@@ -275,81 +276,128 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """
         Set up the user interface following HCI principles.
-        Efficient space usage, clear visual hierarchy, proper spacing.
+        - Fitts's Law: Larger interactive elements, easier to target
+        - Gestalt Principles: Clear grouping with cards and proximity
+        - Visual Hierarchy: Primary actions stand out
+        - Progressive Disclosure: Welcome state, then workflow
         """
         self.setWindowTitle(f"{Config.APP_NAME} v{Config.APP_VERSION}")
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(920, 700)  # Slightly smaller minimum for better fit
         
         # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Main layout with enhanced professional spacing
+        # Main layout with 8px grid system spacing
         layout = QVBoxLayout()
-        layout.setSpacing(16)  # Better spacing for visual breathing room
-        layout.setContentsMargins(20, 16, 20, 16)  # Generous margins for modern look
+        layout.setSpacing(16)  # Reduced spacing for better fit
+        layout.setContentsMargins(20, 16, 20, 16)  # Reduced margins for more space
         
-        # File upload - set consistent width policy
+        # Welcome header - compact design
+        header_widget = QWidget()
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 8)
+        header_layout.setSpacing(12)
+        
+        # App branding with icon
+        branding_layout = QVBoxLayout()
+        branding_layout.setSpacing(2)
+        
+        app_title = QLabel(f"✨ {Config.APP_NAME}")
+        app_title.setStyleSheet("""
+            QLabel {
+                color: #7c8ff5;
+                font-size: 20pt;
+                font-weight: 700;
+                letter-spacing: 0.8px;
+            }
+        """)
+        
+        app_subtitle = QLabel("AI-Powered Document Summarization • 100% Offline • Privacy-First")
+        app_subtitle.setStyleSheet("""
+            QLabel {
+                color: #9ca3af;
+                font-size: 9pt;
+                font-weight: 500;
+                letter-spacing: 0.2px;
+            }
+        """)
+        
+        branding_layout.addWidget(app_title)
+        branding_layout.addWidget(app_subtitle)
+        
+        header_layout.addLayout(branding_layout, 1)
+        header_layout.addStretch()
+        
+        header_widget.setLayout(header_layout)
+        layout.addWidget(header_widget, 0)  # No stretch
+        
+        # File upload - compact and responsive
         self.file_upload = FileUploadWidget()
         self.file_upload.file_selected.connect(self._on_file_selected)
         self.file_upload.file_cleared.connect(self._on_file_cleared)
         self.file_upload.validation_complete.connect(self._on_validation_complete)
-        # Set size policy to ensure consistent width
-        self.file_upload.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        layout.addWidget(self.file_upload)
+        self.file_upload.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        layout.addWidget(self.file_upload, 0)  # No stretch
         
-        # Mode selector - set consistent width policy
+        # Mode selector - give it maximum space
         self.mode_selector = ModeSelectorWidget()
-        self.mode_selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        layout.addWidget(self.mode_selector)
+        self.mode_selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        layout.addWidget(self.mode_selector, 1)  # Give it stretch factor to expand
         
-        # Summarize button - enhanced professional styling with depth
-        # Set consistent width to match other components
-        self.summarize_button = QPushButton("⚡ Summarize")
-        self.summarize_button.setEnabled(False)  # Disabled until file is selected
+        # Add flexible spacer to push button to bottom (minimal space)
+        layout.addSpacing(8)
+        
+        # Summarize button - sleek and small
+        self.summarize_button = QPushButton("✨ Generate Summary")
+        self.summarize_button.setEnabled(False)
         self.summarize_button.clicked.connect(self._on_summarize)
-        self.summarize_button.setFixedHeight(44)  # Slightly taller for better presence
+        self.summarize_button.setFixedHeight(36)  # Sleek height
         self.summarize_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.summarize_button.setStyleSheet("""
             QPushButton {
-                font-size: 12pt;
-                font-weight: 700;
-                padding: 12px 28px;
+                font-size: 10pt;
+                font-weight: 600;
+                padding: 6px 18px;
                 border-radius: 8px;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.4px;
             }
             QPushButton:disabled {
                 opacity: 0.5;
-                background-color: #3d3d3d;
-                color: #6c757d;
+                background-color: #3a3d4a;
+                color: #737380;
             }
         """)
-        layout.addWidget(self.summarize_button)
+        layout.addWidget(self.summarize_button, 0)  # No stretch
         
-        # Loading spinner - sleek circular animation below button
+        # Loading spinner - compact and hidden initially
         spinner_container = QWidget()
+        spinner_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        spinner_container.setFixedHeight(52)
         spinner_layout = QVBoxLayout()
-        spinner_layout.setContentsMargins(0, 8, 0, 8)
+        spinner_layout.setContentsMargins(0, 2, 0, 2)
         spinner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_spinner = LoadingSpinner(size=48, line_width=4)
+        self.loading_spinner = LoadingSpinner(size=42, line_width=4)
         spinner_layout.addWidget(self.loading_spinner, alignment=Qt.AlignmentFlag.AlignCenter)
         spinner_container.setLayout(spinner_layout)
-        layout.addWidget(spinner_container)
+        layout.addWidget(spinner_container, 0)  # No stretch
         
-        # Progress indicator (kept for time/memory info, but hidden during processing)
+        # Progress indicator - compact
         self.progress_indicator = ProgressIndicatorWidget()
-        layout.addWidget(self.progress_indicator)
+        self.progress_indicator.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        layout.addWidget(self.progress_indicator, 0)  # No stretch
         
-        # Summary display - make it expandable to use available space
+        # Summary display - expandable to use remaining space
         # Hidden initially, shown only when summary is generated
         self.summary_display = SummaryDisplayWidget()
-        # Set consistent width policy to match other components
         self.summary_display.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding
+            QSizePolicy.Policy.Ignored  # Ignored when hidden - takes no space
         )
-        layout.addWidget(self.summary_display, 1)  # Give it stretch factor to expand
-        self.summary_display.hide()  # Hide initially until summary is generated
+        # Connect refresh signal from summary display to reset handler
+        self.summary_display.refresh_clicked.connect(self._on_refresh)
+        layout.addWidget(self.summary_display, 1)  # Stretch to fill remaining space
+        self.summary_display.hide()  # Hide initially
         
         central_widget.setLayout(layout)
         
@@ -393,31 +441,35 @@ class MainWindow(QMainWindow):
         right_layout.setContentsMargins(8, 4, 8, 4)
         right_layout.setSpacing(8)
         
-        # Privacy badge - our biggest differentiator
+        # Privacy badge - our biggest differentiator (vibrant emerald green)
         privacy_badge = QLabel("🔒 Privacy-First")
         privacy_badge.setToolTip("All processing occurs locally on your device. No data leaves your system.")
         privacy_badge.setStyleSheet("""
             QLabel {
-                background-color: #28a745;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #48bb78, stop:1 #38a169);
                 color: white;
-                padding: 4px 10px;
-                border-radius: 12px;
+                padding: 6px 12px;
+                border-radius: 14px;
                 font-size: 9pt;
                 font-weight: 600;
+                letter-spacing: 0.3px;
             }
         """)
         
-        # Offline assurance badge - our biggest differentiator
+        # Offline assurance badge - our biggest differentiator (vibrant blue-purple)
         offline_badge = QLabel("📡 Fully Offline")
         offline_badge.setToolTip("No internet connection required. All AI processing happens locally.")
         offline_badge.setStyleSheet("""
             QLabel {
-                background-color: #0078d4;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #667eea, stop:1 #5568d3);
                 color: white;
-                padding: 4px 10px;
-                border-radius: 12px;
+                padding: 6px 12px;
+                border-radius: 14px;
                 font-size: 9pt;
                 font-weight: 600;
+                letter-spacing: 0.3px;
             }
         """)
         
@@ -442,73 +494,70 @@ class MainWindow(QMainWindow):
     def _setup_user_icon_overlay(self):
         """Set up user icon as an overlay widget in the top-right corner."""
         # Create professional user icon button with dropdown menu
-        # Using a styled circular button with user silhouette
+        # Modern circular avatar with gradient
         self.user_button = QPushButton(self)
-        self.user_button.setFixedSize(36, 36)
+        self.user_button.setFixedSize(40, 40)
         self.user_button.setToolTip("User menu - Hover or click for options")
-        # Create professional user icon using Unicode and styling
-        # Create professional user icon - circular avatar style with gradient
         self.user_button.setText("")  # No text, we'll add icon via label
         self.user_button.setStyleSheet("""
             QPushButton {
                 background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
-                    stop:0 #5a5a5a, stop:0.5 #4a4a4a, stop:1 #3a3a3a);
-                border: 2px solid #4d4d4d;
-                border-radius: 18px;
+                    stop:0 #667eea, stop:0.5 #5568d3, stop:1 #4c52cc);
+                border: 2px solid #7c8ff5;
+                border-radius: 20px;
                 padding: 0px;
             }
             QPushButton:hover {
                 background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
-                    stop:0 #6a6a6a, stop:0.5 #5a5a5a, stop:1 #4a4a4a);
-                border: 2px solid #60b8ff;
+                    stop:0 #7c8ff5, stop:0.5 #667eea, stop:1 #5568d3);
+                border: 2px solid #9ca3ff;
             }
             QPushButton:pressed {
                 background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
-                    stop:0 #3a3a3a, stop:0.5 #2a2a2a, stop:1 #1a1a1a);
-                border: 2px solid #0078d4;
+                    stop:0 #4c52cc, stop:0.5 #3d42b8, stop:1 #2e33a4);
+                border: 2px solid #5568d3;
             }
         """)
         
-        # Add professional user icon using styled text approach
-        # Create a professional circular avatar with user initial
+        # Add professional user icon - modern avatar with initial
         user_icon_label = QLabel(self.user_button)
-        # Use "U" for User - styled professionally as an avatar
-        user_icon_label.setText("U")
+        user_icon_label.setText("👤")  # User icon emoji
         user_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         user_icon_label.setStyleSheet("""
             QLabel {
                 background-color: transparent;
                 color: #ffffff;
-                font-size: 18pt;
+                font-size: 20pt;
                 font-weight: 700;
                 border: none;
                 padding: 0px;
-                font-family: 'Segoe UI', Arial, sans-serif;
+                font-family: 'Segoe UI', 'SF Pro Display', Arial, sans-serif;
             }
         """)
-        user_icon_label.setGeometry(0, 0, 36, 36)
+        user_icon_label.setGeometry(0, 0, 40, 40)
         user_icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         
-        # Create user menu with exit option
+        # Create user menu with modern styling
         self.user_menu = QMenu(self)
         self.user_menu.setStyleSheet("""
             QMenu {
-                background-color: #252526;
-                color: #e0e0e0;
-                border: 1px solid #3d3d3d;
-                border-radius: 6px;
-                padding: 4px;
+                background-color: #1f212b;
+                color: #e8eaed;
+                border: 1px solid #3a3d4a;
+                border-radius: 10px;
+                padding: 8px;
             }
             QMenu::item {
-                padding: 8px 24px;
-                border-radius: 4px;
+                padding: 10px 28px;
+                border-radius: 7px;
+                font-size: 10pt;
             }
             QMenu::item:selected {
-                background-color: #0078d4;
+                background-color: #667eea;
                 color: white;
             }
         """)
-        exit_action = QAction("🚪 Exit", self)
+        exit_action = QAction("🚪 Exit Application", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         self.user_menu.addAction(exit_action)
@@ -533,8 +582,8 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'user_button') or not self.user_button:
             return
             
-        button_size = 36
-        margin = 10
+        button_size = 40
+        margin = 12
         
         # Get current window geometry
         window_width = self.width()
@@ -603,6 +652,7 @@ class MainWindow(QMainWindow):
         self._reset_all_fields()
         
         self.current_file = None
+        self.current_mode = None  # Reset mode
         self.summarize_button.setEnabled(False)
         self._update_status_bar("No file selected")
     
@@ -648,12 +698,16 @@ class MainWindow(QMainWindow):
         # Disable all interactive components to prevent changes during processing
         self._disable_all_components()
         
+        # Hide mode selector immediately when generate button is clicked
+        self.mode_selector.hide()
+        
         # Clear previous summary
         self.summary_display.clear_summary()
         
         # Get selected mode and prepare for processing
         try:
             mode = self.mode_selector.get_mode()
+            self.current_mode = mode  # Store for later use
         except Exception as e:
             logger.error(f"Error getting mode: {str(e)}")
             QMessageBox.warning(self, "Error", "Unable to determine summarization mode.")
@@ -717,16 +771,40 @@ class MainWindow(QMainWindow):
     
     def _update_status_bar(self, message: str):
         """Update status bar with message, using semantic colors for different states."""
-        # Determine message type and apply appropriate styling
+        # Determine message type and apply appropriate styling with modern gradients
         if "error" in message.lower() or "failed" in message.lower():
-            # Error message - red
-            self.statusBar().setStyleSheet("QStatusBar { background-color: #dc3545; color: white; }")
+            # Error message - vibrant red gradient
+            self.statusBar().setStyleSheet("""
+                QStatusBar { 
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #fc8181, stop:0.5 #f56565, stop:1 #e53e3e);
+                    color: white;
+                    font-weight: 500;
+                    padding: 6px 14px;
+                }
+            """)
         elif "complete" in message.lower() or "success" in message.lower():
-            # Success message - green
-            self.statusBar().setStyleSheet("QStatusBar { background-color: #28a745; color: white; }")
+            # Success message - vibrant green gradient
+            self.statusBar().setStyleSheet("""
+                QStatusBar { 
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #48bb78, stop:0.5 #38a169, stop:1 #2f855a);
+                    color: white;
+                    font-weight: 500;
+                    padding: 6px 14px;
+                }
+            """)
         else:
-            # Normal/processing message - blue (default)
-            self.statusBar().setStyleSheet("QStatusBar { background-color: #0078d4; color: white; }")
+            # Normal/processing message - vibrant blue-purple gradient (default from theme)
+            self.statusBar().setStyleSheet("""
+                QStatusBar { 
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #667eea, stop:0.5 #5568d3, stop:1 #764ba2);
+                    color: white;
+                    font-weight: 500;
+                    padding: 6px 14px;
+                }
+            """)
         self.statusBar().showMessage(message)
     
     def _on_summarization_finished(self, summary: str):
@@ -742,9 +820,22 @@ class MainWindow(QMainWindow):
         # Keep timer running to update memory display
         # Timer will be stopped when file is selected/cleared or new summarization starts
         
+        # Hide mode selector and summarize button when showing results
+        self.mode_selector.hide()
+        self.summarize_button.hide()
+        
         # Show summary display and set summary
+        # Change size policy to Expanding when shown so it takes space
+        self.summary_display.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
+        self.summary_display.setMinimumHeight(250)  # Ensure it has enough space
         self.summary_display.show()
-        self.summary_display.set_summary(summary)
+        
+        # Pass the mode to summary display
+        mode_str = "extractive" if self.current_mode == SummarizationMode.EXTRACTIVE else "abstractive"
+        self.summary_display.set_summary(summary, mode_str)
         
         # Re-enable all components
         self._enable_all_components()
@@ -802,8 +893,18 @@ class MainWindow(QMainWindow):
         Clears summary, hides progress, resets status bar.
         """
         # Clear and hide summary display
+        # Change size policy to Ignored when hidden so it takes no space
+        self.summary_display.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored
+        )
+        self.summary_display.setMinimumHeight(0)  # Remove minimum height when hidden
         self.summary_display.clear_summary()
         self.summary_display.hide()
+        
+        # Show mode selector and summarize button again
+        self.mode_selector.show()
+        self.summarize_button.show()
         
         # Hide progress indicator and reset timing
         self.progress_indicator.hide_progress()
@@ -812,8 +913,16 @@ class MainWindow(QMainWindow):
         if self.update_timer.isActive():
             self.update_timer.stop()
         
-        # Reset status bar to default
-        self.statusBar().setStyleSheet("QStatusBar { background-color: #0078d4; color: white; }")
+        # Reset status bar to default with modern gradient
+        self.statusBar().setStyleSheet("""
+            QStatusBar { 
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #667eea, stop:0.5 #5568d3, stop:1 #764ba2);
+                color: white;
+                font-weight: 500;
+                padding: 6px 14px;
+            }
+        """)
         
         # Re-enable all components (they may have been disabled during processing)
         self._enable_all_components()
@@ -821,6 +930,12 @@ class MainWindow(QMainWindow):
             self.worker.quit()
             self.worker.wait()
             self.worker = None
+    
+    def _on_refresh(self):
+        """Reset application to initial state (unselect file)."""
+        # Clear file selection
+        self.file_upload.clear_selection()
+        # This will trigger _on_file_cleared which resets all fields
     
     def _show_about(self):
         """Show about dialog."""

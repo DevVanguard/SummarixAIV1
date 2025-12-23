@@ -25,16 +25,24 @@ class ProgressIndicatorWidget(QWidget):
     def _setup_ui(self):
         """
         Set up the UI components following HCI principles.
-        Compact design with efficient space usage.
+        Modern design with smooth animations and clear feedback.
         """
         layout = QVBoxLayout()
-        layout.setSpacing(6)  # Tighter spacing
-        layout.setContentsMargins(0, 4, 0, 4)  # Minimal margins
+        layout.setSpacing(8)  # Compact spacing
+        layout.setContentsMargins(0, 4, 0, 4)  # Compact margins
         
-        # Status label - compact
+        # Status label - modern with better visibility
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #e0e0e0; font-size: 9pt; padding: 2px 0px;")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #e8eaed;
+                font-size: 10pt;
+                font-weight: 500;
+                padding: 4px 0px;
+                letter-spacing: 0.3px;
+            }
+        """)
         
         # Progress bar - compact height
         self.progress_bar = QProgressBar()
@@ -42,25 +50,46 @@ class ProgressIndicatorWidget(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p%")
-        self.progress_bar.setFixedHeight(20)  # Compact height
+        self.progress_bar.setFixedHeight(24)  # Compact height
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                font-size: 8pt;
+                font-size: 9pt;
+                font-weight: 600;
             }
         """)
         
-        # Info bar with time and memory - horizontal layout
+        # Info bar with time and memory - compact card design
         info_layout = QHBoxLayout()
         info_layout.setSpacing(12)
         info_layout.setContentsMargins(0, 2, 0, 0)
         
-        # Processing time label
+        # Processing time label - compact styling
         self.time_label = QLabel("⏱ Time: --")
-        self.time_label.setStyleSheet("color: #808080; font-size: 8pt;")
+        self.time_label.setStyleSheet("""
+            QLabel {
+                color: #9ca3af;
+                font-size: 8.5pt;
+                font-weight: 500;
+                padding: 5px 10px;
+                background-color: #1c1e26;
+                border-radius: 6px;
+                border: 1px solid #2a2c38;
+            }
+        """)
         
-        # Memory usage label
+        # Memory usage label - compact styling
         self.memory_label = QLabel("💾 Memory: --")
-        self.memory_label.setStyleSheet("color: #808080; font-size: 8pt;")
+        self.memory_label.setStyleSheet("""
+            QLabel {
+                color: #9ca3af;
+                font-size: 8.5pt;
+                font-weight: 500;
+                padding: 5px 10px;
+                background-color: #1c1e26;
+                border-radius: 6px;
+                border: 1px solid #2a2c38;
+            }
+        """)
         
         info_layout.addWidget(self.time_label)
         info_layout.addStretch()

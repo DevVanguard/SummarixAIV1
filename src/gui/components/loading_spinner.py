@@ -72,7 +72,7 @@ class LoadingSpinner(QWidget):
             radius * 2
         )
         
-        # Create gradient-like effect with multiple arcs
+        # Create gradient-like effect with multiple arcs (vibrant blue-purple)
         for i in range(8):
             # Calculate angle for this segment
             segment_angle = (self.angle + i * 45) % 360
@@ -81,8 +81,8 @@ class LoadingSpinner(QWidget):
             opacity = 1.0 - (i / 8.0) * 0.7
             opacity = max(0.1, opacity)
             
-            # Create pen with gradient opacity
-            pen = QPen(QColor(78, 201, 176, int(255 * opacity)))  # #4ec9b0 with opacity
+            # Create pen with gradient opacity - using new color scheme
+            pen = QPen(QColor(124, 143, 245, int(255 * opacity)))  # #7c8ff5 with opacity
             pen.setWidth(self.line_width)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(pen)

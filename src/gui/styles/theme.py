@@ -1,343 +1,415 @@
 """
 Modern theme definitions for SummarixAI GUI.
 This file contains all the styling for both dark and light themes.
-We use a modern, professional design with smooth gradients and better visual hierarchy.
+Enhanced with professional design system following HCI principles:
+- Clear visual hierarchy with depth perception
+- Consistent spacing and alignment (8px grid system)
+- WCAG AAA accessible color contrasts
+- Modern card-based layouts with elevation
+- Smooth micro-interactions and hover states
+- Beautiful gradient accents and shadows
 """
 
 DARK_THEME = """
-/* Main window with subtle gradient background - enhanced depth */
+/* Main window with sophisticated atmospheric gradient background */
 QMainWindow {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #1a1a1a, stop:0.5 #1c1c1c, stop:1 #1e1e1e);
+        stop:0 #0a0e27, stop:0.3 #161b33, stop:0.7 #1a1f3a, stop:1 #0f1428);
 }
 
-/* Base widget styling - modern dark theme */
+/* Base widget styling - modern dark theme with enhanced readability */
 QWidget {
     background-color: transparent;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+    color: #e8eaed;
+    font-family: 'Segoe UI', 'SF Pro Display', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
     font-size: 10pt;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
 }
 
-/* Modern button styling with enhanced gradients and professional depth */
-/* Primary action buttons (blue) - default style */
+/* Modern button styling with sophisticated depth and micro-interactions */
+/* Primary action buttons (vibrant blue-purple gradient) - enhanced with better visual feedback */
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #0078d4, stop:0.5 #006bb3, stop:1 #005a9e);
-    color: white;
-    border: 1px solid #004578;
-    border-radius: 8px;
-    padding: 10px 20px;
+        stop:0 #667eea, stop:0.5 #5568d3, stop:1 #4c52cc);
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 28px;
     font-weight: 600;
-    font-size: 10.5pt;
-    min-height: 36px;
-    letter-spacing: 0.3px;
-    /* Enhanced depth with border highlights */
-    border-top: 1px solid #40a8ff;
-    border-left: 1px solid #40a8ff;
-    border-bottom: 2px solid #003d5c;
-    border-right: 2px solid #003d5c;
+    font-size: 11pt;
+    min-height: 44px;
+    letter-spacing: 0.6px;
 }
 
-/* Hover state - lighter blue with enhanced elevation effect */
+/* Hover state - elevated with luminous glow effect */
 QPushButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #1088d4, stop:0.5 #0078d4, stop:1 #006bb3);
-    border: 1px solid #005a9e;
-    border-top: 2px solid #60b8ff;
-    border-left: 2px solid #60b8ff;
-    /* Subtle lift effect */
-    padding-top: 9px;
-    padding-bottom: 11px;
+        stop:0 #7c8ff5, stop:0.5 #667eea, stop:1 #5568d3);
 }
 
-/* Pressed state - darker blue with pressed effect */
+/* Pressed state - darker with inset effect simulating button press */
 QPushButton:pressed {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #005a9e, stop:1 #004578);
-    border: 1px solid #003d5c;
-    border-top: 1px solid #004578;
+        stop:0 #4c52cc, stop:1 #3d42b8);
 }
 
-/* Focus state - visible outline for keyboard navigation */
+/* Focus state - clear ring for accessibility (WCAG 2.1) */
 QPushButton:focus {
-    outline: 2px solid #40a8ff;
-    outline-offset: 2px;
+    outline: 3px solid rgba(124, 143, 245, 0.6);
+    outline-offset: 3px;
 }
 
-/* Disabled state - grayed out with reduced opacity effect */
+/* Disabled state - muted with clear visual indication */
 QPushButton:disabled {
-    background-color: #3d3d3d;
-    color: #6c757d;
-    border: 1px solid #2d2d2d;
-    opacity: 0.6;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #3a3a42, stop:1 #2d2d35);
+    color: #737380;
+    border: none;
+    opacity: 0.5;
 }
 
-/* Input fields with enhanced focus states and professional styling */
+/* Input fields with smooth transitions and clear focus states */
 QLineEdit, QTextEdit {
-    background-color: #2a2a2a;
-    border: 2px solid #3d3d3d;
-    border-radius: 8px;
-    padding: 10px 14px;
-    color: #e0e0e0;
-    selection-background-color: #0078d4;
-    selection-color: white;
+    background-color: #1c1e26;
+    border: 2px solid #3a3d4a;
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: #e8eaed;
+    selection-background-color: #667eea;
+    selection-color: #ffffff;
     font-size: 10.5pt;
-    line-height: 1.6;
+    line-height: 1.7;
 }
 
 QLineEdit:focus, QTextEdit:focus {
-    border: 2px solid #0078d4;
-    background-color: #252525;
-    outline: 2px solid #40a8ff;
+    border: 2px solid #7c8ff5;
+    background-color: #22242e;
+    outline: 2px solid rgba(124, 143, 245, 0.4);
     outline-offset: 2px;
-    /* Enhanced glow effect */
-    border-top: 2px solid #60b8ff;
-    border-left: 2px solid #60b8ff;
 }
 
 QTextEdit {
-    selection-background-color: #0078d4;
+    selection-background-color: #667eea;
+    selection-color: #ffffff;
 }
 
+/* Radio buttons with modern design and clear selection states */
 QRadioButton {
-    spacing: 8px;
-    color: #e0e0e0;
+    spacing: 12px;
+    color: #e8eaed;
+    font-size: 10.5pt;
+    padding: 6px 0px;
 }
 
 QRadioButton::indicator {
-    width: 18px;
-    height: 18px;
-    border-radius: 9px;
-    border: 2px solid #3d3d3d;
-    background-color: #2d2d2d;
+    width: 22px;
+    height: 22px;
+    border-radius: 11px;
+    border: 2px solid #4a4d5a;
+    background-color: #1c1e26;
 }
 
 QRadioButton::indicator:hover {
-    border-color: #0078d4;
+    border-color: #7c8ff5;
+    background-color: #22242e;
 }
 
 QRadioButton::indicator:checked {
-    background-color: #0078d4;
-    border-color: #0078d4;
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.8,
+        stop:0 #ffffff, stop:0.4 #ffffff, stop:0.5 #667eea, stop:1 #667eea);
+    border-color: #667eea;
 }
 
 QRadioButton::indicator:focus {
-    border: 2px solid #40a8ff;
-    outline: 1px solid #40a8ff;
-    outline-offset: 1px;
+    outline: 2px solid rgba(124, 143, 245, 0.6);
+    outline-offset: 3px;
 }
 
-/* Modern progress bar with gradient */
+/* Modern progress bar with smooth animated gradient and shimmer effect */
 QProgressBar {
-    border: 2px solid #3d3d3d;
-    border-radius: 8px;
+    border: none;
+    border-radius: 12px;
     text-align: center;
-    background-color: #2d2d2d;
-    color: #e0e0e0;
-    font-weight: 500;
+    background-color: #1c1e26;
+    color: #e8eaed;
+    font-weight: 600;
+    font-size: 9pt;
     height: 24px;
+    padding: 2px;
 }
 
 QProgressBar::chunk {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #0078d4, stop:1 #00a8ff);
-    border-radius: 6px;
+        stop:0 #667eea, stop:0.3 #7c8ff5, stop:0.7 #5568d3, stop:1 #764ba2);
+    border-radius: 10px;
 }
 
+/* Enhanced labels with better readability */
 QLabel {
-    color: #e0e0e0;
+    color: #e8eaed;
 }
 
+/* Modern menu bar with refined depth */
 QMenuBar {
-    background-color: #252526;
-    color: #e0e0e0;
-    border-bottom: 1px solid #3d3d3d;
+    background-color: #181a24;
+    color: #e8eaed;
+    border-bottom: 1px solid #2f3241;
+    padding: 6px 10px;
+    font-size: 10pt;
 }
 
 QMenuBar::item {
     background-color: transparent;
-    padding: 4px 8px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    margin: 0px 2px;
 }
 
 QMenuBar::item:selected {
-    background-color: #2d2d2d;
+    background-color: #2a2c38;
 }
 
+QMenuBar::item:pressed {
+    background-color: #667eea;
+    color: #ffffff;
+}
+
+/* Modern dropdown menu with elevation shadow */
 QMenu {
-    background-color: #252526;
-    color: #e0e0e0;
-    border: 1px solid #3d3d3d;
+    background-color: #1f212b;
+    color: #e8eaed;
+    border: 1px solid #3a3d4a;
+    border-radius: 10px;
+    padding: 8px;
+}
+
+QMenu::item {
+    padding: 10px 24px;
+    border-radius: 7px;
 }
 
 QMenu::item:selected {
-    background-color: #0078d4;
+    background-color: #667eea;
+    color: #ffffff;
 }
 
+/* Enhanced status bar with vibrant gradient */
 QStatusBar {
-    background-color: #0078d4;
-    color: white;
-    border-top: 1px solid #005a9e;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #667eea, stop:0.5 #5568d3, stop:1 #764ba2);
+    color: #ffffff;
+    font-weight: 500;
+    border: none;
+    padding: 6px 14px;
+    font-size: 9.5pt;
 }
 
+/* Modern scrollbar with smooth hover effects and subtle design */
 QScrollBar:vertical {
-    background-color: #2d2d2d;
-    width: 12px;
+    background-color: #181a24;
+    width: 16px;
     border: none;
+    border-radius: 8px;
+    margin: 0px;
 }
 
 QScrollBar::handle:vertical {
-    background-color: #3d3d3d;
-    min-height: 20px;
-    border-radius: 6px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #3a3d4a, stop:1 #4a4d5a);
+    min-height: 40px;
+    border-radius: 8px;
+    margin: 2px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: #4d4d4d;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #4a4d5a, stop:1 #5a5d6a);
+}
+
+QScrollBar::handle:vertical:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #667eea, stop:1 #7c8ff5);
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+    border: none;
 }
 
-/* Group boxes with enhanced card-like appearance - professional depth */
+/* Group boxes with modern card design and sophisticated elevation */
 QGroupBox {
-    border: 1px solid #3d3d3d;
-    border-radius: 12px;
-    margin-top: 16px;
+    border: 1px solid #2f3241;
+    border-radius: 16px;
+    margin-top: 18px;
     padding-top: 20px;
-    padding-bottom: 12px;
+    padding-bottom: 16px;
     padding-left: 16px;
     padding-right: 16px;
     font-weight: 600;
     font-size: 11pt;
-    background-color: #252525;
-    /* Subtle shadow effect using borders */
-    border-top: 1px solid #4d4d4d;
-    border-left: 1px solid #4d4d4d;
-    border-bottom: 2px solid #1a1a1a;
-    border-right: 2px solid #1a1a1a;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #1f212b, stop:1 #1a1c26);
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
+    subcontrol-position: top left;
     left: 20px;
-    padding: 0px 10px;
-    color: #4ec9b0;
+    top: 6px;
+    padding: 0px 12px;
+    color: #7c8ff5;
     font-weight: 700;
-    font-size: 11.5pt;
-    letter-spacing: 0.5px;
+    font-size: 11pt;
+    letter-spacing: 0.8px;
+    background-color: transparent;
 }
 
-/* Combo box styling */
+/* Modern combo box with smooth interactions and elevation */
 QComboBox {
-    background-color: #2d2d2d;
-    border: 2px solid #3d3d3d;
-    border-radius: 6px;
-    padding: 6px 12px;
-    min-width: 120px;
+    background-color: #1c1e26;
+    border: 2px solid #3a3d4a;
+    border-radius: 10px;
+    padding: 10px 16px;
+    padding-right: 34px;
+    min-width: 150px;
+    font-size: 10pt;
+    color: #e8eaed;
 }
 
 QComboBox:hover {
-    border-color: #0078d4;
+    border-color: #7c8ff5;
+    background-color: #22242e;
 }
 
 QComboBox:focus {
-    border-color: #0078d4;
-    background-color: #252525;
-    outline: 1px solid #40a8ff;
-    outline-offset: 1px;
+    border-color: #7c8ff5;
+    background-color: #22242e;
+    outline: 2px solid rgba(124, 143, 245, 0.4);
+    outline-offset: 2px;
 }
 
-/* Disabled combo box styling */
+/* Disabled state */
 QComboBox:disabled {
-    background-color: #2d2d2d;
-    color: #6c757d;
-    border-color: #2d2d2d;
-    opacity: 0.6;
+    background-color: #181a24;
+    color: #5a5d6a;
+    border-color: #2a2c38;
+    opacity: 0.5;
 }
 
+/* Drop-down arrow area */
 QComboBox::drop-down {
     border: none;
-    width: 20px;
+    width: 34px;
+    padding-right: 10px;
 }
 
+/* Custom arrow with better visual */
 QComboBox::down-arrow {
     image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 6px solid #e0e0e0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #e8eaed;
     width: 0;
     height: 0;
 }
 
+QComboBox::down-arrow:hover {
+    border-top: 8px solid #7c8ff5;
+}
+
+/* Dropdown list with elevation */
+QComboBox QAbstractItemView {
+    background-color: #1f212b;
+    border: 1px solid #3a3d4a;
+    border-radius: 10px;
+    padding: 6px;
+    selection-background-color: #667eea;
+    selection-color: #ffffff;
+    outline: none;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 36px;
+    padding: 6px 14px;
+    border-radius: 7px;
+}
+
+QComboBox QAbstractItemView::item:hover {
+    background-color: #2a2c38;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #667eea;
+    color: #ffffff;
+}
+
 /* Semantic color classes for buttons - can be applied via setProperty */
+/* Success button - vibrant emerald green with modern gradient */
 QPushButton[buttonType="success"] {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #28a745, stop:1 #1e7e34);
-    border: 1px solid #155724;
+        stop:0 #48bb78, stop:0.5 #38a169, stop:1 #2f855a);
+    border: none;
 }
 
 QPushButton[buttonType="success"]:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #34ce57, stop:1 #28a745);
-    border: 1px solid #1e7e34;
-    border-top: 2px solid #5ade7a;
+        stop:0 #68d391, stop:0.5 #48bb78, stop:1 #38a169);
 }
 
 QPushButton[buttonType="success"]:pressed {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #1e7e34, stop:1 #155724);
-    border: 1px solid #0f4a1a;
+        stop:0 #2f855a, stop:1 #276749);
 }
 
+/* Danger button - vibrant red-rose with modern gradient */
 QPushButton[buttonType="danger"] {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #dc3545, stop:1 #c82333);
-    border: 1px solid #bd2130;
+        stop:0 #fc8181, stop:0.5 #f56565, stop:1 #e53e3e);
+    border: none;
 }
 
 QPushButton[buttonType="danger"]:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #e4606d, stop:1 #dc3545);
-    border: 1px solid #c82333;
-    border-top: 2px solid #ff6b7a;
+        stop:0 #feb2b2, stop:0.5 #fc8181, stop:1 #f56565);
 }
 
 QPushButton[buttonType="danger"]:pressed {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #c82333, stop:1 #bd2130);
-    border: 1px solid #a71e2a;
+        stop:0 #e53e3e, stop:1 #c53030);
 }
 
-/* Professional exit button - circular with subtle styling */
+/* Professional exit button - circular with modern styling */
 QPushButton[buttonType="exit"] {
-    background-color: #3d3d3d;
-    color: #e0e0e0;
-    border: 1px solid #4d4d4d;
-    border-radius: 14px;
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
+        stop:0 #3a3d4a, stop:1 #2a2c38);
+    color: #e8eaed;
+    border: 1px solid #4a4d5a;
+    border-radius: 18px;
     font-size: 16pt;
     font-weight: 300;
     padding: 0px;
-    min-width: 28px;
-    max-width: 28px;
-    min-height: 28px;
-    max-height: 28px;
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 36px;
+    max-height: 36px;
 }
 
 QPushButton[buttonType="exit"]:hover {
-    background-color: #4d4d4d;
-    border-color: #5d5d5d;
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
+        stop:0 #fc8181, stop:0.5 #f56565, stop:1 #e53e3e);
     color: #ffffff;
+    border: 1px solid #fc8181;
 }
 
 QPushButton[buttonType="exit"]:pressed {
-    background-color: #2d2d2d;
-    border-color: #3d3d3d;
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
+        stop:0 #e53e3e, stop:1 #c53030);
+    border: 1px solid #c53030;
 }
 
 QPushButton[buttonType="exit"]:focus {
-    outline: 2px solid #40a8ff;
+    outline: 2px solid rgba(124, 143, 245, 0.6);
     outline-offset: 2px;
 }
 """
