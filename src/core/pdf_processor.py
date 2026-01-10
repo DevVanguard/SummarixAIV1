@@ -50,7 +50,7 @@ class PDFProcessor:
     
     def extract_text(self) -> Optional[str]:
         """
-        Extract all text from the loaded PDF.
+        Extract all text from the loaded PDF with improved formatting.
         
         Returns:
             Extracted text as string, or None if extraction failed
@@ -65,7 +65,9 @@ class PDFProcessor:
                 page = self.doc[page_num]
                 page_text = page.get_text()
                 if page_text.strip():
-                    text_parts.append(page_text)
+                    # Clean PDF artifacts from page text
+                    cleaned_page_text = self._clean_pdf_text(page_text)
+                    text_parts.append(cleaned_page_text)
             
             full_text = "\n\n".join(text_parts)
             logger.info(f"Extracted {len(full_text)} characters from PDF")
@@ -74,6 +76,74 @@ class PDFProcessor:
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {str(e)}")
             return None
+    
+    def _clean_pdf_text(self, text: str) -> str:
+        """
+        Clean PDF-specific artifacts from extracted text.
+        Handles hyphenated line breaks, column layouts, and formatting issues.
+        
+        Args:
+            text: Raw text extracted from PDF
+            
+        Returns:
+            Cleaned text with better formatting
+        """
+        if not text:
+            return ""
+        
+        import re
+        
+        # Step 1: Fix hyphenated line breaks (e.g., "repre-\nsentation" -> "representation")
+        # Match word-hyphen-newline-word and join them
+        text = re.sub(r'(\w)-\s*\n\s*(\w)', r'\1\2', text)
+        
+        # Step 2: Join lines that are part of the same sentence/paragraph
+        # Replace single newlines with spaces (but preserve double newlines as paragraph breaks)
+        lines = text.split('\n')
+        cleaned_lines = []
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            
+            # Skip empty lines
+            if not line:
+                # If previous line exists, add empty line to mark paragraph break
+                if cleaned_lines and cleaned_lines[-1]:
+                    cleaned_lines.append('')
+                continue
+            
+            # If this is the first line or previous was empty, start new paragraph
+            if not cleaned_lines or not cleaned_lines[-1]:
+                cleaned_lines.append(line)
+            else:
+                # Check if previous line ends with sentence terminator
+                prev_line = cleaned_lines[-1]
+                
+                # If previous line ends with sentence-ending punctuation, start new sentence
+                if prev_line.rstrip()[-1:] in '.!?':
+                    # Check if current line starts with capital or number (new sentence)
+                    if line[0].isupper() or line[0].isdigit():
+                        cleaned_lines[-1] = prev_line + ' ' + line
+                    else:
+                        # Might be continuation, join anyway
+                        cleaned_lines[-1] = prev_line + ' ' + line
+                else:
+                    # Previous line doesn't end with punctuation, join with space
+                    cleaned_lines[-1] = prev_line + ' ' + line
+        
+        # Step 3: Join cleaned lines, preserving paragraph breaks (empty lines)
+        text = '\n'.join(cleaned_lines)
+        
+        # Step 4: Normalize multiple spaces to single space
+        text = re.sub(r' +', ' ', text)
+        
+        # Step 5: Normalize multiple newlines (max 2 for paragraph break)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # Step 6: Remove spaces before punctuation
+        text = re.sub(r'\s+([.,;:!?])', r'\1', text)
+        
+        return text.strip()
     
     def extract_text_with_pages(self) -> Optional[Dict[int, str]]:
         """

@@ -48,13 +48,17 @@ class Config:
     # Extractive summarization
     EXTRACTIVE_RATIO = 0.3  # 30% of original text
     
-    # Abstractive summarization - tuned for better quality
-    TEMPERATURE = 0.7  # Balanced for natural output
-    NUM_BEAMS = 5  # Good balance between quality and speed
-    DO_SAMPLE = False  # Use deterministic beam search
-    LENGTH_PENALTY = 1.2  # Default penalty (adjusted per preset)
-    REPETITION_PENALTY = 1.3  # Reduce repetition without being too aggressive
+    # Abstractive summarization - QUALITY FIRST (time is not a constraint)
+    TEMPERATURE = 1.0  # Default temperature
+    NUM_BEAMS = 4  # Use beam search for quality (slower but much better)
+    DO_SAMPLE = False  # Use deterministic generation
+    LENGTH_PENALTY = 1.0  # Neutral penalty
+    REPETITION_PENALTY = 1.3  # Moderate penalty (too high causes cutoffs)
     NO_REPEAT_NGRAM_SIZE = 3  # Avoid 3-gram repetition
+    
+    # CPU-specific optimizations
+    USE_CACHE = True  # Enable KV cache for faster generation
+    EARLY_STOPPING = True  # Stop when beam search finds good solution
     
     # File validation settings
     MAX_FILE_SIZE_MB = 100  # Maximum file size in MB (hard limit)
@@ -86,42 +90,42 @@ class Config:
     @classmethod
     def get_output_length_for_preset(cls, preset: str) -> int:
         """
-        Get max output tokens for a given preset.
-        Adjusted for better quality summaries.
+        Get max output tokens for a given preset (PER CHUNK).
+        Shorter chunks = better quality on CPU. Multiple chunks are combined.
         
         Args:
             preset: 'short', 'medium', or 'long'
             
         Returns:
-            Maximum output tokens
+            Maximum output tokens per chunk
         """
         preset = preset.lower()
         if preset == 'short':
-            return 120  # Short: 1 sentence + 2-3 key points (~100-120 tokens)
+            return 100  # Short: Brief per chunk
         elif preset == 'long':
-            return 350  # Long: Executive summary with details (~300-350 tokens)
+            return 150  # Long: 150 tokens per chunk for stability, 10 chunks = 1500 tokens
         else:  # medium (default)
-            return 250  # Medium: 6-10 sentences or 4-8 bullets (~200-250 tokens)
+            return 120  # Medium: Balanced per chunk
     
     @classmethod
     def get_min_length_for_preset(cls, preset: str) -> int:
         """
-        Get minimum output tokens for a given preset.
-        Adjusted to ensure quality summaries.
+        Get minimum output tokens for a given preset (PER CHUNK).
+        These are per-chunk minimums - multiple chunks will be combined.
         
         Args:
             preset: 'short', 'medium', or 'long'
             
         Returns:
-            Minimum output tokens
+            Minimum output tokens per chunk
         """
         preset = preset.lower()
         if preset == 'short':
-            return 30  # Short: At least enough for 1 sentence + 2-3 points
+            return 30  # Short: At least a good paragraph per chunk
         elif preset == 'long':
-            return 100  # Long: Enough for structured executive summary
+            return 60  # Long: 40% of max for quality
         else:  # medium (default)
-            return 60  # Medium: Enough for 6-10 sentences or 4-8 bullets
+            return 50  # Medium: Balanced per chunk
     
     @classmethod
     def get_length_penalty_for_preset(cls, preset: str) -> float:

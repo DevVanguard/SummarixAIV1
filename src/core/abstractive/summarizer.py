@@ -30,7 +30,7 @@ def _ensure_torch_imported():
             ) from e
 
 class AbstractiveSummarizer:
-    """Abstractive summarization using T5-small model."""
+    """Abstractive summarization using T5-small model optimized for CPU."""
     
     def __init__(self, use_quantization: bool = True):
         """
@@ -45,10 +45,11 @@ class AbstractiveSummarizer:
         self.model = None
         self.tokenizer = None
         self._initialized = False
+        self.skip_overview = True  # Skip document overview for CPU speed
     
     def initialize(self) -> bool:
         """
-        Initialize and load the model.
+        Initialize and load the model with CPU optimizations.
         
         Returns:
             True if successful, False otherwise
@@ -57,6 +58,16 @@ class AbstractiveSummarizer:
             return True
         
         logger.info("Initializing abstractive summarizer...")
+        
+        # Import torch for CPU optimizations
+        _ensure_torch_imported()
+        
+        # CPU optimization: Set number of threads
+        try:
+            torch.set_num_threads(2)  # Use 2 threads for better CPU performance
+            logger.info("Set torch to use 2 CPU threads")
+        except Exception as e:
+            logger.warning(f"Could not set thread count: {e}")
         
         if not self.model_loader.load_model(use_quantization=self.use_quantization):
             logger.error("Failed to load model")
@@ -67,6 +78,9 @@ class AbstractiveSummarizer:
         if self.model is None or self.tokenizer is None:
             logger.error("Model or tokenizer is None")
             return False
+        
+        # Ensure model is in eval mode
+        self.model.eval()
         
         self._initialized = True
         logger.info("Abstractive summarizer initialized successfully")
@@ -109,15 +123,16 @@ class AbstractiveSummarizer:
             
             # Generate brief, professional overview (40-60 tokens for 1-2 sentences)
             _ensure_torch_imported()
-            with torch.no_grad():
+            with torch.inference_mode():  # Faster than no_grad() for inference
                 outputs = self.model.generate(
                     inputs.input_ids,
                     max_length=60,  # Enough for 1-2 sentences
                     min_length=25,  # Ensure at least one complete sentence
-                    num_beams=4,  # Better quality for overview
+                    num_beams=2,  # Reduced for CPU speed
                     length_penalty=0.7,  # Keep it concise
                     repetition_penalty=1.2,  # Avoid repetition
                     early_stopping=True,
+                    use_cache=Config.USE_CACHE,  # Enable KV cache
                 )
             
             overview = self.tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
@@ -186,22 +201,14 @@ class AbstractiveSummarizer:
         length_penalty = length_penalty if length_penalty is not None else Config.LENGTH_PENALTY
         
         try:
-            # T5 models expect a prefix to know what task to do
-            # T5 is trained on "summarize:" prefix, but we can try variations
-            # Different summary types will be handled with prompts + post-processing
+            # T5 models expect a "summarize:" prefix
+            # Use simple prompt - let length parameters control output size
+            # Complex prompts can confuse the model and cause garbled output on CPU
             summary_type = summary_type.lower() if summary_type else "short"
             
-            # Use prompts that T5 might understand better
-            # T5 was trained on various summarization tasks, so we try task-specific prefixes
-            if summary_type == "short":
-                # For short: try to get concise output
-                input_text = f"summarize briefly: {text}"
-            elif summary_type == "long":
-                # For long: try to get detailed output
-                input_text = f"summarize in detail: {text}"
-            else:  # medium
-                # Standard abstractive summary prefix
-                input_text = f"summarize: {text}"
+            # Use simple, consistent prompt for all presets
+            # T5-small performs better with simple prompts on CPU
+            input_text = f"summarize: {text}"
             
             # Tokenize the input - convert text to numbers the model understands
             # We truncate if too long and pad if too short
@@ -217,30 +224,27 @@ class AbstractiveSummarizer:
                 logger.error(f"Tokenization failed: {str(e)}")
                 return text  # Can't proceed without tokenization
             
-            # Generate the summary - this is the expensive operation
-            # We use torch.no_grad() to save memory since we're not training
+            # Generate the summary - optimized for CPU inference
+            # We use torch.inference_mode() for better CPU performance
             _ensure_torch_imported()  # Ensure torch is imported
             try:
-                # Adjust repetition penalty based on summary type for better quality
-                # Short summaries need less repetition control, long need more
-                rep_penalty = Config.REPETITION_PENALTY
-                if summary_type == "short":
-                    rep_penalty = 1.2  # Less aggressive for short summaries
-                elif summary_type == "long":
-                    rep_penalty = 1.4  # More aggressive for long summaries
+                # Quality-first generation parameters
+                rep_penalty = Config.REPETITION_PENALTY  # Default is 1.3
+                no_repeat = Config.NO_REPEAT_NGRAM_SIZE  # Default is 3
                 
-                with torch.no_grad():
+                with torch.inference_mode():  # Faster than no_grad() for inference-only
                     outputs = self.model.generate(
                         inputs.input_ids,
                         max_length=max_length,
                         min_length=min_length,
-                        num_beams=Config.NUM_BEAMS,  # More beams = better quality but slower
-                        length_penalty=length_penalty,  # Use provided length penalty (adjusted for preset)
-                        repetition_penalty=rep_penalty,  # Reduce repetition (adjusted per type)
-                        temperature=Config.TEMPERATURE if Config.DO_SAMPLE else 1.0,
-                        do_sample=Config.DO_SAMPLE,  # Use sampling or deterministic
-                        early_stopping=True,  # Stop when we find a good summary
-                        no_repeat_ngram_size=Config.NO_REPEAT_NGRAM_SIZE,  # Avoid repeating phrases
+                        num_beams=Config.NUM_BEAMS,  # Beam search for quality (slower but better)
+                        length_penalty=length_penalty,  # Use provided length penalty
+                        repetition_penalty=rep_penalty,  # Prevent repetition without stopping generation
+                        temperature=Config.TEMPERATURE,
+                        do_sample=Config.DO_SAMPLE,  # Deterministic beam search
+                        early_stopping=Config.EARLY_STOPPING,  # Stop when beams converge
+                        no_repeat_ngram_size=no_repeat,  # Avoid repeating phrases
+                        use_cache=Config.USE_CACHE,  # Enable KV cache for speed
                     )
             except RuntimeError as e:
                 # This usually means out of memory or model error
@@ -256,10 +260,16 @@ class AbstractiveSummarizer:
                 summary = summary.strip()
                 
                 # Basic validation - make sure we got something reasonable
-                if not summary or len(summary) < 10:
-                    logger.warning("Generated summary is too short, using original text")
+                if not summary:
+                    logger.warning("Generated summary is empty, using original text")
                     return text
                 
+                if len(summary) < 10:
+                    logger.warning(f"Generated summary is very short ({len(summary)} chars), but returning it")
+                    # Still return it - might be valid for very short inputs
+                
+                logger.info(f"Generated summary: {len(summary)} chars, {len(summary.split())} words")
+                logger.info(f"Summary preview: {summary[:200]}...")
                 return summary
             except Exception as e:
                 logger.error(f"Failed to decode model output: {str(e)}")
@@ -270,14 +280,145 @@ class AbstractiveSummarizer:
             logger.error(f"Unexpected error in abstractive summarization: {str(e)}", exc_info=True)
             return text  # Return original text as fallback
     
-    def _format_summary(self, summary: str, preset: str) -> str:
+    def _clean_model_output(self, text: str) -> str:
+        """
+        Clean up model output - remove fragments, garbage, fix encoding issues.
+        Aggressive garbage detection while preserving valid content.
+        
+        Args:
+            text: Raw model output
+            
+        Returns:
+            Cleaned text
+        """
+        if not text:
+            return ""
+        
+        # Store original for fallback
+        original_text = text
+        
+        # Remove markdown formatting
+        text = text.replace('**', '')  # Remove bold markers
+        text = text.replace('*', '')    # Remove italic markers
+        
+        # Clean up bullet points but keep the content
+        text = text.replace('• ', '')
+        text = text.replace('- ', '')
+        
+        # Fix common encoding issues from PDF
+        text = text.replace('â€TM', "'")
+        text = text.replace('â€œ', '"')
+        text = text.replace('â€', '"')
+        text = text.replace('&#160;', ' ')
+        text = text.replace('&nbsp;', ' ')
+        text = text.replace('»', '')  # Remove special quotation marks
+        
+        # Remove HTML entities and garbage patterns
+        import re
+        text = re.sub(r'&[a-zA-Z]+;', '', text)
+        text = re.sub(r'&#\d+;', '', text)
+        
+        # Remove garbage patterns that T5 generates on CPU
+        # Pattern like: of)"'s  or  the)"  or  a)'s
+        text = re.sub(r'\)\s*["\']\'*s\s*$', '', text)  # Ends with )"'s or )"'
+        text = re.sub(r'\)\s*["\']\'*\s*$', '', text)   # Ends with )" or )'
+        text = re.sub(r'\s+\)\s*["\']\'*s*\b', ' ', text)  # Middle of text: )"'s
+        
+        # Remove incomplete parentheses/brackets at end
+        text = re.sub(r'\([^)]*$', '', text)  # Unclosed ( at end
+        text = re.sub(r'\[[^\]]*$', '', text)  # Unclosed [ at end
+        
+        # Split into sentences for filtering
+        try:
+            sentences = self.preprocessor.tokenize_sentences(text)
+        except:
+            # If tokenization fails, return original without markdown
+            return original_text.replace('**', '').replace('*', '')
+        
+        if not sentences:
+            return original_text.replace('**', '').replace('*', '')
+        
+        clean_sentences = []
+        
+        # Known garbage patterns - specific to T5 CPU errors
+        # Be conservative - only remove obvious garbage
+        garbage_patterns = [
+            r'click here',
+            r'http[s]?://',
+            r'www\.',
+            r'\.{5,}',  # 5+ dots in a row
+            r"ICT'do\?",  # Malformed text
+            r'companies which.*?are two.*?»',  # Specific garbage pattern from earlier
+            r'many u\.s\. infrastructure such',
+        ]
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            
+            # Filter sentences
+            words = sentence.split()
+            
+            # Skip very short fragments only
+            if len(words) < 3:
+                continue
+            
+            # Skip sentences matching SPECIFIC garbage patterns only
+            is_garbage = False
+            for pattern in garbage_patterns:
+                if re.search(pattern, sentence, re.IGNORECASE):
+                    logger.debug(f"Filtering garbage: {sentence[:50]}...")
+                    is_garbage = True
+                    break
+            
+            if is_garbage:
+                continue
+            
+            # Skip sentences with excessive special chars (very high threshold)
+            special_chars = sum(1 for c in sentence if c in '?&#;@$%^*[]{}|\\')
+            if special_chars > 8:
+                continue
+            
+            # Skip if almost no alphabetic content (very low threshold)
+            alpha_chars = sum(c.isalpha() for c in sentence)
+            if len(sentence) > 0 and alpha_chars < len(sentence) * 0.3:
+                continue
+            
+            clean_sentences.append(sentence)
+        
+        # If cleaning removed everything, return original without markdown
+        if not clean_sentences:
+            logger.warning("Cleaning removed all sentences, returning original")
+            return original_text.replace('**', '').replace('*', '')
+        
+        result = ' '.join(clean_sentences)
+        logger.info(f"After basic cleaning: {len(clean_sentences)} sentences, {len(result)} chars")
+        
+        # Final pass: Remove incomplete sentence at the end ONLY if it's clearly incomplete
+        # Remove it if it doesn't end with punctuation AND is short (< 4 words)
+        if result:
+            sentences_final = self.preprocessor.tokenize_sentences(result)
+            if sentences_final:
+                last_sentence = sentences_final[-1].strip()
+                # Check if last sentence is incomplete (no ending punctuation AND very short)
+                if last_sentence and (last_sentence[-1] not in '.!?') and len(last_sentence.split()) < 4:
+                    logger.info(f"Removing incomplete last sentence: {last_sentence[:50]}...")
+                    sentences_final = sentences_final[:-1]
+                    result = ' '.join(sentences_final)
+                    logger.info(f"After removing incomplete sentence: {len(sentences_final)} sentences remaining")
+        
+        logger.info(f"Clean model output final: {len(result)} chars")
+        return result
+    
+    def _format_summary(self, summary: str, preset: str, skip_cleaning: bool = False) -> str:
         """
         Format the summary based on the preset type according to professional requirements.
         Parses and reformats the model output to match exact specifications.
+        No markdown formatting - plain text only.
         
         Args:
-            summary: Raw summary text from model
+            summary: Summary text (already cleaned if skip_cleaning=True)
             preset: 'short', 'medium', or 'long'
+            skip_cleaning: If True, skip the cleaning step (already done)
             
         Returns:
             Formatted summary text matching professional requirements
@@ -285,11 +426,24 @@ class AbstractiveSummarizer:
         if not summary or not summary.strip():
             return summary
         
+        # Clean the model output if not already done
+        if not skip_cleaning:
+            cleaned_summary = self._clean_model_output(summary)
+            
+            # If cleaning removed everything, use original
+            if not cleaned_summary or not cleaned_summary.strip():
+                logger.warning("Cleaned summary is empty, using original")
+                cleaned_summary = summary.replace('**', '').replace('*', '')
+            
+            if not cleaned_summary:
+                return summary  # Return original as last resort
+            
+            summary = cleaned_summary
+        
         preset = preset.lower() if preset else "short"
         
         if preset == "short":
-            # Short: Extremely concise - 1 sentence purpose + 2-3 key points only
-            # Remove minor details, examples, background information
+            # Short: Concise plain text - 1 main sentence + 2-3 key points
             sentences = self.preprocessor.tokenize_sentences(summary)
             
             if len(sentences) >= 2:
@@ -297,145 +451,121 @@ class AbstractiveSummarizer:
                 main_purpose = sentences[0].strip()
                 
                 # Extract 2-3 key points from remaining sentences
-                # Filter out sentences that are too short or seem like details/examples
                 key_points = []
                 for sentence in sentences[1:]:
                     sentence = sentence.strip()
-                    # Skip very short sentences, questions, or sentences with examples
-                    if (len(sentence) > 15 and 
+                    # Skip very short sentences or examples
+                    if (len(sentence) > 20 and 
                         not sentence.startswith(('For example', 'For instance', 'Such as', 'Like')) and
                         '?' not in sentence):
                         key_points.append(sentence)
-                        if len(key_points) >= 3:  # Maximum 3 key points
+                        if len(key_points) >= 3:
                             break
                 
-                # Format: Main purpose + 2-3 key points
+                # Format: Plain text, no markdown
                 formatted = f"{main_purpose}\n\n"
                 if key_points:
                     formatted += "Key Points:\n"
-                    for point in key_points:
-                        formatted += f"• {point}\n"
+                    for i, point in enumerate(key_points, 1):
+                        formatted += f"{i}. {point}\n"
                 
                 return formatted.strip()
             else:
-                # If only one sentence, return as main purpose
                 return summary.strip()
         
         elif preset == "medium":
-            # Medium: 6-10 sentences or 4-8 bullet points, structured, groups related points
+            # Medium: 6-10 sentences in plain text, natural flow
             sentences = self.preprocessor.tokenize_sentences(summary)
             
-            # Determine if we should use bullets or sentences
-            # Use bullets if we have clear distinct points, sentences if narrative flow
             if len(sentences) >= 4:
-                # Format as bullet points (4-8 bullets)
-                # Group related sentences together
-                bullet_points = []
-                current_group = []
-                
+                # Select 6-10 best sentences
+                selected_sentences = []
                 for sentence in sentences:
                     sentence = sentence.strip()
-                    if sentence and len(sentence) > 10:
-                        # Remove existing bullet markers
-                        sentence = sentence.lstrip('•-* ').strip()
-                        
-                        # Group short related sentences
-                        if len(sentence) < 80 and current_group:
-                            # Combine with previous if both are short
-                            if len(current_group[-1]) < 100:
-                                current_group[-1] += f" {sentence}"
-                            else:
-                                current_group.append(sentence)
-                        else:
-                            if current_group:
-                                bullet_points.extend([f"• {s}" for s in current_group])
-                                current_group = []
-                            current_group.append(sentence)
-                        
-                        # Limit to 8 bullets maximum
-                        if len(bullet_points) + len(current_group) >= 8:
+                    if sentence and len(sentence) > 20:
+                        selected_sentences.append(sentence)
+                        if len(selected_sentences) >= 10:
                             break
                 
-                # Add remaining group
-                if current_group:
-                    bullet_points.extend([f"• {s}" for s in current_group])
-                
-                # Ensure we have 4-8 bullets
-                if len(bullet_points) < 4 and len(sentences) > len(bullet_points):
-                    # Add more from remaining sentences
-                    remaining = sentences[len(bullet_points):]
-                    for sentence in remaining[:8-len(bullet_points)]:
-                        sentence = sentence.strip().lstrip('•-* ').strip()
-                        if sentence and len(sentence) > 10:
-                            bullet_points.append(f"• {sentence}")
-                
-                if bullet_points:
-                    return "\n".join(bullet_points[:8])  # Maximum 8 bullets
+                # Format as natural paragraph with proper spacing
+                if selected_sentences:
+                    return ' '.join(selected_sentences)
             
-            # Fallback: format as 6-10 sentences
-            formatted_sentences = sentences[:10]  # Maximum 10 sentences
-            return ' '.join(formatted_sentences)
+            # Fallback: use all sentences up to 10
+            return ' '.join(sentences[:10])
         
         elif preset == "long":
-            # Long: Executive summary with Purpose + Key Insights (4-7 bullets) + Detailed Summary
+            # Long: Simple paragraph format - no complex formatting for CPU stability
             sentences = self.preprocessor.tokenize_sentences(summary)
+            logger.info(f"Formatting LONG preset: {len(sentences)} sentences to format")
             
-            formatted = "Executive Summary\n\n"
+            if not sentences:
+                return summary
             
-            # Initialize key_insights to avoid UnboundLocalError
-            key_insights = []
+            # Import re for pattern matching
+            import re
             
-            # 1. Purpose - one strong sentence describing what the document is about
-            if sentences:
-                purpose = sentences[0].strip()
-                # Ensure it's a strong, complete sentence
-                if not purpose.endswith(('.', '!', '?')):
-                    purpose += "."
-                formatted += f"**Purpose:** {purpose}\n\n"
-            
-            # 2. Key Insights - 4-7 bullet points covering main arguments, findings, or themes
-            if len(sentences) > 1:
-                formatted += "**Key Insights:**\n"
-                # Extract 4-7 key points from remaining sentences
-                # Prioritize longer, more substantial sentences
-                for sentence in sentences[1:]:
-                    sentence = sentence.strip().lstrip('•-* ').strip()
-                    if sentence and len(sentence) > 20:  # Substantial sentences only
-                        key_insights.append(sentence)
-                        if len(key_insights) >= 7:  # Maximum 7 insights
-                            break
+            # Filter out only OBVIOUS garbage - be very conservative
+            clean_sentences = []
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                    
+                words = sentence.split()
                 
-                # Ensure we have at least 4 if possible
-                if len(key_insights) < 4 and len(sentences) > len(key_insights) + 1:
-                    remaining = sentences[len(key_insights) + 1:]
-                    for sentence in remaining[:4-len(key_insights)]:
-                        sentence = sentence.strip().lstrip('•-* ').strip()
-                        if sentence and len(sentence) > 15:
-                            key_insights.append(sentence)
+                # Skip only extremely short fragments
+                if len(words) < 3:
+                    continue
                 
-                # Format as bullets
-                for insight in key_insights[:7]:  # Maximum 7
-                    formatted += f"• {insight}\n"
+                # Skip only specific known garbage patterns
+                garbage_indicators = ['»', '...........', 'click here', 'http://', 'www.', ')"\'']
+                if any(indicator in sentence.lower() for indicator in garbage_indicators):
+                    continue
                 
-                formatted += "\n"
+                # Skip if sentence ends with malformed text like "of)"
+                if re.search(r'\w+\)\s*["\']?\'?s?\s*$', sentence):
+                    logger.debug(f"Skipping malformed sentence: {sentence[:50]}...")
+                    continue
+                
+                clean_sentences.append(sentence)
             
-            # 3. Detailed Summary - clear, coherent paragraph combining important details
-            if len(sentences) > len(key_insights) + 1:
-                detailed_sentences = sentences[len(key_insights) + 1:]
-                detailed_text = ' '.join(detailed_sentences)
-                formatted += f"**Detailed Summary:**\n{detailed_text}"
-            elif len(sentences) == 1:
-                # If only one sentence, use it as detailed summary too
-                formatted += f"**Detailed Summary:**\n{sentences[0]}"
-            elif len(key_insights) == 0:
-                # If no key insights were extracted, use all remaining sentences as detailed summary
-                if len(sentences) > 1:
-                    detailed_text = ' '.join(sentences[1:])
-                    formatted += f"**Detailed Summary:**\n{detailed_text}"
+            # If we have clean sentences, use them; otherwise use all
+            if clean_sentences:
+                sentences = clean_sentences
+                logger.info(f"After garbage filtering: {len(clean_sentences)} clean sentences")
+            else:
+                sentences = [s.strip() for s in sentences if s.strip()]
+                logger.info(f"No filtering applied, using all {len(sentences)} sentences")
             
-            return formatted.strip()
+            # Simple format: Just join sentences into paragraphs
+            # Group into paragraphs of 3-4 sentences each for readability
+            paragraphs = []
+            current_para = []
+            
+            for sentence in sentences:
+                current_para.append(sentence)
+                if len(current_para) >= 3:
+                    paragraphs.append(' '.join(current_para))
+                    current_para = []
+            
+            # Add remaining sentences
+            if current_para:
+                paragraphs.append(' '.join(current_para))
+            
+            logger.info(f"Created {len(paragraphs)} paragraphs from {len(sentences)} sentences")
+            
+            # Join paragraphs with double newline
+            if paragraphs:
+                result = '\n\n'.join(paragraphs)
+                logger.info(f"Final formatted output: {len(result)} chars")
+                return result
+            else:
+                result = ' '.join(sentences)
+                logger.info(f"Final formatted output (no paragraphs): {len(result)} chars")
+                return result
         
-        else:  # fallback
+        else:  # fallback - just return clean text
             return summary.strip()
     
     def summarize(
@@ -480,21 +610,29 @@ class AbstractiveSummarizer:
         
         # Clean up the text - remove extra whitespace, normalize, etc.
         try:
+            logger.info(f"Starting text cleaning, input length: {len(text)} chars")
             cleaned_text = self.preprocessor.clean_text(text)
             if not cleaned_text or not cleaned_text.strip():
                 logger.warning("Text became empty after cleaning")
                 return ""
+            logger.info(f"Text cleaned successfully, output length: {len(cleaned_text)} chars")
         except Exception as e:
             logger.error(f"Text cleaning failed: {str(e)}")
             cleaned_text = text  # Use original if cleaning fails
         
-        # Generate document overview first (brief description of what the document is about)
-        logger.info("Generating document overview...")
-        try:
-            overview = self._generate_document_overview(cleaned_text)
-        except Exception as e:
-            logger.warning(f"Failed to generate overview: {str(e)}")
+        # Skip document overview for CPU performance (saves 50% inference time)
+        # Overview generation requires a second model inference which is slow on CPU
+        if self.skip_overview:
             overview = ""
+            logger.info("Skipping document overview for CPU performance")
+        else:
+            # Generate document overview (optional, adds extra inference time)
+            logger.info("Generating document overview...")
+            try:
+                overview = self._generate_document_overview(cleaned_text)
+            except Exception as e:
+                logger.warning(f"Failed to generate overview: {str(e)}")
+                overview = ""
         
         # Normalize preset value
         preset = preset.lower() if preset else "medium"
@@ -507,26 +645,92 @@ class AbstractiveSummarizer:
             logger.error(f"Token estimation failed: {str(e)}")
             estimated_tokens = len(cleaned_text) // 4  # Rough fallback estimate
         
+        # ADAPTIVE OUTPUT LENGTH: Calculate based on input size
+        # For longer documents, generate proportionally longer summaries
+        # Rough estimate: 1 page = ~500 tokens, aim for ~100-150 tokens per page of summary
+        if estimated_tokens < 500:
+            # Very short document (< 1 page)
+            adaptive_max = 150
+            adaptive_min = 50
+        elif estimated_tokens < 2000:
+            # Short document (1-4 pages)
+            adaptive_max = 300
+            adaptive_min = 100
+        elif estimated_tokens < 5000:
+            # Medium document (4-10 pages)  
+            adaptive_max = 500
+            adaptive_min = 200
+        else:
+            # Long document (10+ pages)
+            adaptive_max = 800
+            adaptive_min = 300
+        
+        # Override with adaptive lengths instead of preset-based
+        if max_length is None:
+            max_length = adaptive_max
+        if min_length is None:
+            min_length = adaptive_min
+        
+        logger.info(f"Adaptive summary length: min={min_length}, max={max_length} tokens for {estimated_tokens} input tokens")
+        logger.info(f"chunk={chunk}, estimated_tokens={estimated_tokens}, MAX_INPUT_TOKENS={Config.MAX_INPUT_TOKENS}")
+        
         # If text fits in one go, summarize directly (faster and better quality)
         if not chunk or estimated_tokens <= Config.MAX_INPUT_TOKENS:
-            logger.info(f"Summarizing text directly ({estimated_tokens} estimated tokens)")
+            logger.info(f"Taking SINGLE-CHUNK path: Summarizing text directly ({estimated_tokens} estimated tokens)")
             summary = self._summarize_chunk(cleaned_text, max_length, min_length, length_penalty, preset)
+            logger.info(f"Single-chunk summary generated: {len(summary)} chars")
+            
+            # Safety check - ensure we have output
+            if not summary or not summary.strip():
+                logger.error("Chunk summarization produced empty result")
+                return cleaned_text[:1000]  # Return first 1000 chars as fallback
+            
             # Format the summary based on preset
+            logger.info(f"Formatting summary (preset={preset})...")
             formatted_summary = self._format_summary(summary, preset)
+            logger.info(f"Formatted summary: {len(formatted_summary)} chars")
+            
+            # Final safety check
+            if not formatted_summary or not formatted_summary.strip():
+                logger.warning("Formatting produced empty result, using raw summary")
+                formatted_summary = summary
+            
             # Combine overview and summary
-            return self._combine_overview_and_summary(overview, formatted_summary)
+            result = self._combine_overview_and_summary(overview, formatted_summary)
+            
+            # Absolute final check
+            if not result or not result.strip():
+                logger.error("Final result is empty, returning raw summary")
+                return summary if summary else cleaned_text[:1000]
+            
+            return result
+        
+        # CPU optimization: For very long texts, pre-extract using fast extractive method
+        # Only do this for extremely long documents to preserve content
+        if estimated_tokens > Config.MAX_INPUT_TOKENS * 2.5:
+            logger.info(f"Text is very long ({estimated_tokens} tokens), pre-extracting key content for CPU")
+            try:
+                # Use extractive summarization to get ~50% of content (less aggressive)
+                from src.core.extractive.textrank import TextRankSummarizer
+                extractor = TextRankSummarizer(ratio=0.5)
+                cleaned_text = extractor.summarize(cleaned_text)
+                estimated_tokens = self.preprocessor.estimate_tokens(cleaned_text)
+                logger.info(f"Pre-extraction reduced to {estimated_tokens} tokens")
+            except Exception as e:
+                logger.warning(f"Pre-extraction failed: {str(e)}, continuing with full text")
         
         # For long texts, we need to chunk and summarize each piece
-        # Then combine the summaries, and possibly summarize again if still too long
-        logger.info(f"Text is long ({estimated_tokens} tokens), chunking before summarization")
+        # CPU optimization: Use fewer, larger chunks to reduce number of inferences
+        logger.info(f"Taking MULTI-CHUNK path: Text is long ({estimated_tokens} tokens), chunking before summarization")
         
         try:
-            # Split into manageable chunks with overlap to preserve context
-            # Overlap helps maintain coherence between chunks
+            # Split into manageable chunks with minimal overlap for CPU speed
+            # Use 90% of max tokens per chunk to reduce number of chunks
+            chunk_size = int(Config.MAX_INPUT_TOKENS * 0.9)
             chunks = self.preprocessor.chunk_text(
                 cleaned_text,
-                max_tokens=Config.MAX_INPUT_TOKENS,
-                overlap=100  # Increased overlap for better context preservation
+                max_tokens=chunk_size,
+                overlap=30  # Minimal overlap for CPU speed
             )
         except Exception as e:
             logger.error(f"Text chunking failed: {str(e)}")
@@ -539,24 +743,42 @@ class AbstractiveSummarizer:
             logger.warning("Chunking produced no chunks, using original text")
             return cleaned_text
         
+        # Quality first: Process more chunks for comprehensive coverage
+        # User prioritizes quality over speed
+        if preset == "long":
+            max_chunks_cpu = 15  # Process up to 15 chunks for very comprehensive summary
+        else:
+            max_chunks_cpu = 8  # Process up to 8 chunks for short/medium
+        
+        if len(chunks) > max_chunks_cpu:
+            logger.info(f"Limiting to first {max_chunks_cpu} chunks (of {len(chunks)}) for CPU performance")
+            chunks = chunks[:max_chunks_cpu]
+        
         logger.info(f"Summarizing {len(chunks)} chunks sequentially")
         
         # Summarize each chunk - this can take a while for long documents
         summaries = []
         for i, chunk in enumerate(chunks):
             try:
-                logger.debug(f"Processing chunk {i+1}/{len(chunks)}")
+                logger.info(f"Processing chunk {i+1}/{len(chunks)}...")
                 chunk_summary = self._summarize_chunk(chunk, max_length, min_length, length_penalty, preset)
                 
-                # Only add non-empty summaries
+                # Clean each chunk summary individually
                 if chunk_summary and chunk_summary.strip():
-                    summaries.append(chunk_summary.strip())
+                    cleaned_chunk = self._clean_model_output(chunk_summary)
+                    if cleaned_chunk and cleaned_chunk.strip():
+                        summaries.append(cleaned_chunk.strip())
+                        logger.info(f"Chunk {i+1} summary: {len(cleaned_chunk)} chars, {len(cleaned_chunk.split())} words")
+                    else:
+                        logger.warning(f"Chunk {i+1} cleaning removed all content")
                 else:
                     logger.warning(f"Chunk {i+1} produced empty summary")
             except Exception as e:
                 logger.error(f"Error summarizing chunk {i+1}: {str(e)}")
                 # Continue with other chunks even if one fails
                 continue
+        
+        logger.info(f"Collected {len(summaries)} summaries from {len(chunks)} chunks")
         
         # If no chunks produced summaries, we're in trouble
         if not summaries:
@@ -565,23 +787,48 @@ class AbstractiveSummarizer:
         
         # Combine all chunk summaries into one
         combined_summary = ' '.join(summaries)
+        logger.info(f"Combined summary: {len(combined_summary)} chars, {len(combined_summary.split())} words")
+        
+        # Safety check
+        if not combined_summary or not combined_summary.strip():
+            logger.error("Combined summary is empty")
+            return cleaned_text[:1000]  # Return first 1000 chars as fallback
         
         # If the combined summary is still too long, summarize it again
         # This creates a "summary of summaries" which is often more coherent
+        # BUT: Skip this for "long" preset - we want to preserve all chunk content
         try:
             combined_tokens = self.preprocessor.estimate_tokens(combined_summary)
-            if combined_tokens > Config.MAX_INPUT_TOKENS:
+            if combined_tokens > Config.MAX_INPUT_TOKENS and preset != "long":
                 logger.info("Combined summary is still long, creating final summary")
-                combined_summary = self._summarize_chunk(combined_summary, max_length, min_length, length_penalty, preset)
+                final_summary = self._summarize_chunk(combined_summary, max_length, min_length, length_penalty, preset)
+                if final_summary and final_summary.strip():
+                    combined_summary = final_summary
+            elif preset == "long":
+                logger.info(f"Skipping final summarization for 'long' preset - preserving {combined_tokens} tokens")
         except Exception as e:
             logger.error(f"Error in final summarization step: {str(e)}")
             # Return what we have even if final step failed
         
         # Format the combined summary based on preset
-        formatted_summary = self._format_summary(combined_summary, preset)
+        # Skip cleaning since we already cleaned each chunk individually
+        formatted_summary = self._format_summary(combined_summary, preset, skip_cleaning=True)
+        logger.info(f"After formatting: {len(formatted_summary)} chars, {len(formatted_summary.split())} words")
+        
+        # Safety check after formatting
+        if not formatted_summary or not formatted_summary.strip():
+            logger.warning("Formatting produced empty result, using combined summary")
+            formatted_summary = combined_summary
         
         # Combine overview and formatted summary
-        return self._combine_overview_and_summary(overview, formatted_summary)
+        result = self._combine_overview_and_summary(overview, formatted_summary)
+        
+        # Final safety check
+        if not result or not result.strip():
+            logger.error("Final result is empty, returning combined summary")
+            return combined_summary if combined_summary else cleaned_text[:1000]
+        
+        return result
     
     def _combine_overview_and_summary(self, overview: str, summary: str) -> str:
         """
@@ -615,5 +862,6 @@ class AbstractiveSummarizer:
         self.tokenizer = None
         self._initialized = False
         logger.info("Abstractive summarizer cleaned up")
+
 
 

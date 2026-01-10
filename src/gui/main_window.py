@@ -282,7 +282,7 @@ class MainWindow(QMainWindow):
         - Progressive Disclosure: Welcome state, then workflow
         """
         self.setWindowTitle(f"{Config.APP_NAME} v{Config.APP_VERSION}")
-        self.setMinimumSize(920, 700)  # Slightly smaller minimum for better fit
+        self.setMinimumSize(1000, 700)  # Wider minimum for better text display
         
         # Central widget
         central_widget = QWidget()

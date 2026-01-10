@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QClipboard
+from PyQt6.QtGui import QClipboard, QTextOption
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -152,13 +152,15 @@ class SummaryDisplayWidget(QWidget):
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.text_display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)  # Wrap at widget width
+        self.text_display.setWordWrapMode(QTextOption.WrapMode.WordWrap)  # Wrap at word boundaries
+        self.text_display.setAcceptRichText(False)  # Plain text only
         self.text_display.setStyleSheet("""
             QTextEdit {
                 font-family: 'Segoe UI', 'SF Pro Display', 'Inter', 'Roboto', Arial, sans-serif;
-                font-size: 11.5pt;
-                line-height: 1.75;
-                letter-spacing: 0.02em;
-                padding: 24px 28px;
+                font-size: 10.5pt;
+                line-height: 1.8;
+                letter-spacing: 0.01em;
+                padding: 20px 24px;
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #1f212b, stop:1 #1a1c26);
                 border: 2px solid #3a3d4a;
@@ -180,8 +182,9 @@ class SummaryDisplayWidget(QWidget):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding
         )
-        # Set minimum height to ensure content is visible
+        # Set minimum dimensions to ensure content is visible and uses space efficiently
         self.text_display.setMinimumHeight(200)
+        self.text_display.setMinimumWidth(400)  # Ensure adequate width for text flow
     
     def set_summary(self, text: str, mode: str = ""):
         """
@@ -191,18 +194,76 @@ class SummaryDisplayWidget(QWidget):
             text: Summary text
             mode: Summarization mode used ("extractive" or "abstractive")
         """
-        self.summary_text = text
+        # Clean up text formatting for better display
+        cleaned_text = self._clean_display_text(text)
+        
+        self.summary_text = cleaned_text
         self.summarization_mode = mode
-        self.text_display.setPlainText(text)
+        self.text_display.setPlainText(cleaned_text)
         self._update_mode_label()
         
         # Enable buttons
-        has_text = bool(text.strip())
+        has_text = bool(cleaned_text.strip())
         self.copy_button.setEnabled(has_text)
         self.export_txt_button.setEnabled(has_text)
         self.export_pdf_button.setEnabled(has_text)
         self.export_docx_button.setEnabled(has_text)
         self.refresh_button.setEnabled(has_text)
+    
+    def _clean_display_text(self, text: str) -> str:
+        """
+        Clean text for optimal display - fix spacing and line breaks.
+        
+        Args:
+            text: Raw summary text
+            
+        Returns:
+            Cleaned text optimized for display
+        """
+        if not text:
+            return ""
+        
+        import re
+        
+        # Remove excessive whitespace but preserve intentional paragraph breaks
+        # Replace multiple spaces with single space
+        text = re.sub(r' +', ' ', text)
+        
+        # Normalize line breaks - keep intentional paragraph breaks (double newlines)
+        # but remove single newlines that break text flow
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Max 2 newlines (paragraph break)
+        
+        # For extractive mode: ensure sentences flow together properly
+        # Remove single newlines within paragraphs, but keep double newlines
+        if self.summarization_mode.lower() == "extractive":
+            # Join lines that don't end with sentence-ending punctuation
+            lines = text.split('\n')
+            cleaned_lines = []
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if not line:
+                    # Empty line - keep as paragraph break if not duplicate
+                    if cleaned_lines and cleaned_lines[-1] != '':
+                        cleaned_lines.append('')
+                    continue
+                
+                # If previous line doesn't end with sentence terminator, join with space
+                if cleaned_lines and cleaned_lines[-1] and not cleaned_lines[-1].rstrip()[-1:] in '.!?':
+                    cleaned_lines[-1] = cleaned_lines[-1] + ' ' + line
+                else:
+                    cleaned_lines.append(line)
+            
+            text = '\n'.join(cleaned_lines)
+        
+        # Final cleanup: remove leading/trailing whitespace on each line
+        lines = text.split('\n')
+        lines = [line.strip() for line in lines]
+        text = '\n'.join(lines)
+        
+        # Remove any leading/trailing whitespace
+        text = text.strip()
+        
+        return text
     
     def get_summary(self) -> str:
         """Get the current summary text."""

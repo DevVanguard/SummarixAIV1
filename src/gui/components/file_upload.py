@@ -29,9 +29,17 @@ class ClickableLabel(QLabel):
     
     def mousePressEvent(self, event):
         """Handle mouse press event."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(event)
+        try:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.clicked.emit()
+            # Call parent handler within try block to catch RuntimeError
+            super().mousePressEvent(event)
+        except RuntimeError as e:
+            # Widget has been deleted or is being deleted, ignore the event
+            logger.debug(f"ClickableLabel mousePressEvent RuntimeError (widget deleted): {e}")
+        except Exception as e:
+            # Catch any other exceptions to prevent crashes
+            logger.debug(f"Exception in ClickableLabel mousePressEvent: {e}")
 
 
 class ValidationWorker(QThread):

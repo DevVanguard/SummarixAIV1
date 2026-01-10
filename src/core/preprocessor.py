@@ -68,9 +68,84 @@ class TextPreprocessor:
             logger.info(f"Downloading NLTK stopwords for {self.language}")
             nltk.download('stopwords', quiet=True)
     
+    def clean_academic_text(self, text: str) -> str:
+        """
+        Clean academic paper text - remove citations, LaTeX, URLs, special tokens, metadata.
+        
+        Args:
+            text: Raw academic text
+            
+        Returns:
+            Cleaned text suitable for summarization
+        """
+        if not text:
+            return ""
+        
+        # Step 1: Fix common PDF encoding issues
+        text = text.replace('ﬁ', 'fi')
+        text = text.replace('ﬂ', 'fl')
+        text = text.replace('ﬀ', 'ff')
+        text = text.replace('ﬃ', 'ffi')
+        text = text.replace('ﬄ', 'ffl')
+        text = text.replace('–', '-')  # en-dash to hyphen
+        text = text.replace('—', '-')  # em-dash to hyphen
+        text = text.replace(''', "'")  # smart quote to regular
+        text = text.replace(''', "'")
+        text = text.replace('"', '"')
+        text = text.replace('"', '"')
+        
+        # Step 2: Remove special model tokens (BERT, etc.)
+        text = re.sub(r'\[CLS\]|\[SEP\]|\[MASK\]|\[PAD\]|\[UNK\]', '', text)
+        
+        # Step 3: Remove email addresses (including group formats like {user1,user2}@domain.com)
+        text = re.sub(r'\{[^}]*\}@\S+', '', text)  # {user1,user2}@domain
+        text = re.sub(r'\S+@\S+\.[A-Za-z]{2,}', '', text)  # regular emails
+        
+        # Step 4: Remove inline citations (various formats)
+        # Pattern: (Author et al., YYYY) or (Author, YYYY) or (Author YYYY)
+        text = re.sub(r'\([A-Z][a-zA-Z\s]+et al\.\s*,?\s*\d{4}[a-z]?\)', '', text)
+        text = re.sub(r'\([A-Z][a-zA-Z\s]+\s*,?\s*\d{4}[a-z]?\)', '', text)
+        text = re.sub(r'\([A-Z][a-zA-Z]+\s+and\s+[A-Z][a-zA-Z]+\s*,?\s*\d{4}[a-z]?\)', '', text)
+        # Pattern: [1], [2,3], [1-5]
+        text = re.sub(r'\[\d+(?:[-,]\d+)*\]', '', text)
+        # Pattern: superscript numbers (citation markers)
+        text = re.sub(r'\s*\d+\s*(?=[.,;:])', '', text)
+        
+        # Step 5: Remove title/author header patterns
+        # Remove lines with "Abstract" alone
+        text = re.sub(r'\n\s*Abstract\s*\n', '\n', text, flags=re.IGNORECASE)
+        # Remove affiliation patterns
+        text = re.sub(r'(?:University|Institute|Department|Lab|Laboratory) of [A-Za-z\s]+', '', text)
+        
+        # Step 6: Remove URLs
+        text = re.sub(r'https?://[^\s]+', '', text)
+        text = re.sub(r'www\.[^\s]+', '', text)
+        
+        # Step 7: Remove LaTeX commands and symbols
+        text = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', text)  # \command{arg}
+        text = re.sub(r'\\[a-zA-Z]+', '', text)  # \command
+        text = re.sub(r'\$[^$]+\$', '', text)  # Inline math $...$
+        text = re.sub(r'\\\(.*?\\\)', '', text)  # Math \(...\)
+        text = re.sub(r'\\\[.*?\\\]', '', text, flags=re.DOTALL)  # Math \[...\]
+        
+        # Step 8: Remove figure/table references and captions
+        text = re.sub(r'(?:Figure|Fig\.|Table|Tab\.)\s*\d+[:\.]?[^\n]*', '', text, flags=re.IGNORECASE)
+        
+        # Step 9: Remove section numbering patterns
+        text = re.sub(r'^\s*\d+(?:\.\d+)*\s+[A-Z]', lambda m: m.group(0).split()[-1], text, flags=re.MULTILINE)
+        
+        # Step 10: Remove common academic artifacts
+        text = re.sub(r'(?:arXiv|DOI):\s*\S+', '', text)
+        
+        # Step 11: Remove mathematical notation remnants
+        text = re.sub(r'[∈∉∀∃∧∨¬⊕⊗⊙∑∏∫]', '', text)
+        text = re.sub(r'∈R[A-Z]', '', text)  # Like ∈RH
+        
+        return text
+    
     def clean_text(self, text: str) -> str:
         """
-        Clean and normalize text.
+        Clean and normalize text, with special handling for PDF artifacts.
         
         Args:
             text: Raw text to clean
@@ -81,16 +156,36 @@ class TextPreprocessor:
         if not text:
             return ""
         
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
+        # Step 1: Clean academic artifacts (citations, LaTeX, etc.)
+        text = self.clean_academic_text(text)
         
-        # Remove special characters but keep punctuation
-        text = re.sub(r'[^\w\s\.\,\!\?\;\:\-\(\)\[\]\"\']', ' ', text)
+        # Step 2: Fix any remaining hyphenated line breaks
+        text = re.sub(r'(\w)-\s*\n\s*(\w)', r'\1\2', text)
         
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
+        # Step 3: Normalize line breaks - preserve paragraph breaks (double newline)
+        # but join lines within paragraphs
+        text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)  # Single newlines to spaces
+        text = re.sub(r'\n{2,}', '\n\n', text)  # Multiple newlines to double
         
-        # Strip leading/trailing whitespace
+        # Step 4: Remove extra whitespace
+        text = re.sub(r' +', ' ', text)
+        
+        # Step 5: Remove special characters but keep punctuation and newlines
+        text = re.sub(r'[^\w\s\.\,\!\?\;\:\-\(\)\[\]\"\'\n]', ' ', text)
+        
+        # Step 6: Clean up whitespace around punctuation
+        text = re.sub(r'\s+([.,;:!?])', r'\1', text)
+        text = re.sub(r'([.,;:!?])([^\s\d])', r'\1 \2', text)  # Add space after punctuation if missing
+        
+        # Step 7: Final whitespace normalization
+        text = re.sub(r' +', ' ', text)
+        
+        # Step 8: Clean up line breaks - remove leading/trailing spaces on each line
+        lines = text.split('\n')
+        lines = [line.strip() for line in lines]
+        text = '\n'.join(lines)
+        
+        # Step 9: Strip leading/trailing whitespace
         text = text.strip()
         
         return text
