@@ -48,17 +48,17 @@ class Config:
     # Extractive summarization
     EXTRACTIVE_RATIO = 0.3  # 30% of original text
     
-    # Abstractive summarization - QUALITY FIRST (time is not a constraint)
+    # Abstractive summarization - QUALITY & CONSISTENCY FIRST
     TEMPERATURE = 1.0  # Default temperature
-    NUM_BEAMS = 4  # Use beam search for quality (slower but much better)
+    NUM_BEAMS = 4  # Moderate beams for balance between quality and generation length
     DO_SAMPLE = False  # Use deterministic generation
-    LENGTH_PENALTY = 1.0  # Neutral penalty
-    REPETITION_PENALTY = 1.3  # Moderate penalty (too high causes cutoffs)
-    NO_REPEAT_NGRAM_SIZE = 3  # Avoid 3-gram repetition
+    LENGTH_PENALTY = 1.0  # Neutral penalty (preset-specific penalties applied separately)
+    REPETITION_PENALTY = 1.05  # Very light penalty for natural flow and longer generation
+    NO_REPEAT_NGRAM_SIZE = 2  # More lenient to avoid premature stopping
     
     # CPU-specific optimizations
     USE_CACHE = True  # Enable KV cache for faster generation
-    EARLY_STOPPING = True  # Stop when beam search finds good solution
+    EARLY_STOPPING = False  # Disable to ensure consistent minimum length generation
     
     # File validation settings
     MAX_FILE_SIZE_MB = 100  # Maximum file size in MB (hard limit)
@@ -91,7 +91,7 @@ class Config:
     def get_output_length_for_preset(cls, preset: str) -> int:
         """
         Get max output tokens for a given preset (PER CHUNK).
-        Shorter chunks = better quality on CPU. Multiple chunks are combined.
+        Balanced limits to prevent hallucination while maintaining quality.
         
         Args:
             preset: 'short', 'medium', or 'long'
@@ -101,17 +101,17 @@ class Config:
         """
         preset = preset.lower()
         if preset == 'short':
-            return 100  # Short: Brief per chunk
+            return 100  # Short: Brief but coherent per chunk
         elif preset == 'long':
-            return 150  # Long: 150 tokens per chunk for stability, 10 chunks = 1500 tokens
+            return 200  # Long: 200 tokens per chunk - balanced for T5-small
         else:  # medium (default)
-            return 120  # Medium: Balanced per chunk
+            return 140  # Medium: Balanced per chunk
     
     @classmethod
     def get_min_length_for_preset(cls, preset: str) -> int:
         """
         Get minimum output tokens for a given preset (PER CHUNK).
-        These are per-chunk minimums - multiple chunks will be combined.
+        VERY strong minimums to ensure consistent, substantial output.
         
         Args:
             preset: 'short', 'medium', or 'long'
@@ -121,18 +121,18 @@ class Config:
         """
         preset = preset.lower()
         if preset == 'short':
-            return 30  # Short: At least a good paragraph per chunk
+            return 55  # Short: At least a good paragraph per chunk
         elif preset == 'long':
-            return 60  # Long: 40% of max for quality
+            return 140  # Long: 70% of max - ensure very substantial content
         else:  # medium (default)
-            return 50  # Medium: Balanced per chunk
+            return 90  # Medium: Substantial per chunk
     
     @classmethod
     def get_length_penalty_for_preset(cls, preset: str) -> float:
         """
         Get length penalty for a given preset.
         Lower penalty encourages shorter summaries, higher encourages longer.
-        Adjusted for better control over output length.
+        VERY strong penalties for consistent comprehensive output.
         
         Args:
             preset: 'short', 'medium', or 'long'
@@ -144,7 +144,7 @@ class Config:
         if preset == 'short':
             return 0.6  # Lower penalty to keep it concise
         elif preset == 'long':
-            return 1.4  # Higher penalty to encourage comprehensive summaries
+            return 2.0  # Very strong penalty to ensure comprehensive output
         else:  # medium (default)
-            return 1.0  # Balanced penalty for medium summaries
+            return 1.3  # Encourage detail
 

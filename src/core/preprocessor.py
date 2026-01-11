@@ -143,9 +143,63 @@ class TextPreprocessor:
         
         return text
     
+    def remove_boilerplate(self, text: str) -> str:
+        """
+        Remove repetitive headers, footers, page numbers, and references.
+        
+        Args:
+            text: Text to clean
+            
+        Returns:
+            Text with boilerplate removed
+        """
+        if not text:
+            return ""
+        
+        lines = text.split('\n')
+        if len(lines) < 3:
+            return text
+        
+        # Remove common header/footer patterns (page numbers, document titles repeated)
+        # Remove lines that appear multiple times (likely headers/footers)
+        line_counts = {}
+        for line in lines:
+            line_stripped = line.strip()
+            if len(line_stripped) > 5 and len(line_stripped) < 100:  # Reasonable length for headers/footers
+                line_counts[line_stripped] = line_counts.get(line_stripped, 0) + 1
+        
+        # Remove lines that appear more than 2 times (likely headers/footers)
+        repeated_lines = {line for line, count in line_counts.items() if count > 2}
+        
+        # Also remove page number patterns and document identifiers
+        page_patterns = [
+            r'^\s*\d+\s*$',  # Standalone page numbers
+            r'^Page\s+\d+',  # "Page 1", "Page 2", etc.
+            r'^\d+\s+/\s+\d+$',  # "1 / 10" format
+            r'\d{1,3}\s+(?:Five Year Plan|Year Plan)\s+\d+\s+Information and Communication Technologies',  # Document identifiers
+            r'\d{1,3}\s+(?:Five Year Plan|Year Plan).*Information and Communication Technologies',  # Document identifiers (variation)
+        ]
+        
+        filtered_lines = []
+        for line in lines:
+            line_stripped = line.strip()
+            # Skip if it's a repeated header/footer
+            if line_stripped in repeated_lines:
+                continue
+            # Skip if it matches page number patterns
+            if any(re.match(pattern, line_stripped, re.IGNORECASE) for pattern in page_patterns):
+                continue
+            # Skip very short lines that might be artifacts
+            if len(line_stripped) < 3:
+                continue
+            filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines)
+    
     def clean_text(self, text: str) -> str:
         """
         Clean and normalize text, with special handling for PDF artifacts.
+        Removes boilerplate content (headers, footers, references).
         
         Args:
             text: Raw text to clean
@@ -156,36 +210,62 @@ class TextPreprocessor:
         if not text:
             return ""
         
-        # Step 1: Clean academic artifacts (citations, LaTeX, etc.)
+        # Step 1: Remove boilerplate (headers, footers, page numbers)
+        text = self.remove_boilerplate(text)
+        
+        # Step 2: Clean academic artifacts (citations, LaTeX, etc.)
         text = self.clean_academic_text(text)
         
-        # Step 2: Fix any remaining hyphenated line breaks
+        # Step 3: Remove reference sections (bibliography, works cited, etc.)
+        # Look for common reference section headers
+        ref_patterns = [
+            r'(?i)(?:References|Bibliography|Works Cited|Works Consulted|Sources).*',
+            r'(?i)(?:Appendix|Appendices).*',
+        ]
+        # Split by paragraphs and filter out reference sections
+        paragraphs = text.split('\n\n')
+        filtered_paragraphs = []
+        skip_mode = False
+        for para in paragraphs:
+            para_stripped = para.strip()
+            # Check if this paragraph starts a reference section
+            if any(re.match(pattern, para_stripped[:50]) for pattern in ref_patterns):
+                skip_mode = True
+                continue
+            # If we're in skip mode, skip short paragraphs (likely reference entries)
+            if skip_mode and len(para_stripped.split()) < 10:
+                continue
+            if para_stripped:
+                filtered_paragraphs.append(para)
+        text = '\n\n'.join(filtered_paragraphs)
+        
+        # Step 4: Fix any remaining hyphenated line breaks
         text = re.sub(r'(\w)-\s*\n\s*(\w)', r'\1\2', text)
         
-        # Step 3: Normalize line breaks - preserve paragraph breaks (double newline)
+        # Step 5: Normalize line breaks - preserve paragraph breaks (double newline)
         # but join lines within paragraphs
         text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)  # Single newlines to spaces
         text = re.sub(r'\n{2,}', '\n\n', text)  # Multiple newlines to double
         
-        # Step 4: Remove extra whitespace
+        # Step 6: Remove extra whitespace
         text = re.sub(r' +', ' ', text)
         
-        # Step 5: Remove special characters but keep punctuation and newlines
+        # Step 7: Remove special characters but keep punctuation and newlines
         text = re.sub(r'[^\w\s\.\,\!\?\;\:\-\(\)\[\]\"\'\n]', ' ', text)
         
-        # Step 6: Clean up whitespace around punctuation
+        # Step 8: Clean up whitespace around punctuation
         text = re.sub(r'\s+([.,;:!?])', r'\1', text)
         text = re.sub(r'([.,;:!?])([^\s\d])', r'\1 \2', text)  # Add space after punctuation if missing
         
-        # Step 7: Final whitespace normalization
+        # Step 9: Final whitespace normalization
         text = re.sub(r' +', ' ', text)
         
-        # Step 8: Clean up line breaks - remove leading/trailing spaces on each line
+        # Step 10: Clean up line breaks - remove leading/trailing spaces on each line
         lines = text.split('\n')
-        lines = [line.strip() for line in lines]
+        lines = [line.strip() for line in lines if line.strip()]
         text = '\n'.join(lines)
         
-        # Step 9: Strip leading/trailing whitespace
+        # Step 11: Strip leading/trailing whitespace
         text = text.strip()
         
         return text

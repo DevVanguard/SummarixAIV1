@@ -184,50 +184,48 @@ class SummarizationWorker(QThread):
                     self.progress.emit(60, "Loading AI model (this may take a moment)...")
                     try:
                         if not self.abstractive_summarizer.initialize():
-                            self.error.emit("Failed to load abstractive model. Please check if models are downloaded.")
+                            # Check if it's a memory error by checking the error message
+                            error_msg = "Failed to load abstractive model. Please check if models are downloaded."
+                            # Try to get more specific error from model loader if available
+                            memory_keywords = ["paging file", "out of memory", "memory", "insufficient memory", "cannot allocate", "os error 1455", "1455"]
+                            if any(keyword in str(error_msg).lower() for keyword in memory_keywords):
+                                self.error.emit(f"Memory error: {error_msg}")
+                            else:
+                                self.error.emit(error_msg)
                             return
                     except Exception as e:
                         logger.error(f"Model initialization failed: {str(e)}", exc_info=True)
-                        self.error.emit(f"Model loading error: {str(e)}")
+                        # Check if it's a memory-related error
+                        error_str = str(e)
+                        memory_keywords = ["paging file", "out of memory", "memory", "insufficient memory", "cannot allocate", "os error 1455", "1455"]
+                        if any(keyword in error_str.lower() for keyword in memory_keywords):
+                            self.error.emit(f"Memory error: {error_str}")
+                        else:
+                            self.error.emit(f"Model loading error: {error_str}")
                         return
                 
                 # Get length preset from mode selector if available
                 max_output_tokens = Config.MAX_OUTPUT_TOKENS  # Default
                 min_output_tokens = Config.MIN_SUMMARY_LENGTH  # Default
-                length_penalty = Config.LENGTH_PENALTY  # Default
-                
+                # Get preset for abstractive summarization
+                # Let the summarizer calculate adaptive limits internally for quality
+                preset = "medium"  # Default
                 if self.mode_selector:
                     try:
-                        length_preset = self.mode_selector.get_length_preset()
-                        max_output_tokens = Config.get_output_length_for_preset(length_preset)
-                        min_output_tokens = Config.get_min_length_for_preset(length_preset)
-                        length_penalty = Config.get_length_penalty_for_preset(length_preset)
-                        logger.info(
-                            f"Using length preset: {length_preset} "
-                            f"(max: {max_output_tokens}, min: {min_output_tokens}, penalty: {length_penalty})"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to get length preset, using default: {str(e)}")
-                        max_output_tokens = Config.MAX_OUTPUT_TOKENS
-                        min_output_tokens = Config.MIN_SUMMARY_LENGTH
-                        length_penalty = Config.LENGTH_PENALTY
+                        preset = self.mode_selector.get_length_preset()
+                    except Exception:
+                        pass
                 
-                # Generate abstractive summary with specified length and preset
+                logger.info(f"Using preset for abstractive summarization: {preset}")
+                
+                # Generate abstractive summary with preset
                 try:
                     self.progress.emit(70, "Generating abstractive summary with AI...")
-                    # Get preset for formatting
-                    preset = "medium"  # Default
-                    if self.mode_selector:
-                        try:
-                            preset = self.mode_selector.get_length_preset()
-                        except Exception:
-                            pass
                     
+                    # DON'T pass max_length/min_length - let summarizer calculate adaptive limits
+                    # based on document size for better quality across all document types
                     summary = self.abstractive_summarizer.summarize(
                         text,
-                        max_length=max_output_tokens,
-                        min_length=min_output_tokens,
-                        length_penalty=length_penalty,
                         preset=preset
                     )
                     if not summary or not summary.strip():
@@ -863,13 +861,80 @@ class MainWindow(QMainWindow):
         
         self._update_status_bar("✗ Error occurred")
         
-        QMessageBox.critical(self, "Error", error_message)
+        # Check if this is a memory-related error
+        memory_error_keywords = [
+            "paging file",
+            "out of memory",
+            "memory",
+            "insufficient memory",
+            "cannot allocate",
+            "os error 1455",
+            "1455"
+        ]
+        
+        is_memory_error = any(keyword.lower() in error_message.lower() for keyword in memory_error_keywords)
+        
+        if is_memory_error:
+            self._show_memory_error_dialog()
+        else:
+            QMessageBox.critical(self, "Error", error_message)
         
         # Clean up worker
         if self.worker:
             self.worker.quit()
             self.worker.wait()
             self.worker = None
+    
+    def _show_memory_error_dialog(self):
+        """Show user-friendly dialog for memory errors with suggestions."""
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Insufficient Memory for AI Summarization")
+        msg_box.setTextFormat(Qt.TextFormat.RichText)
+        
+        message = """
+        <h3>⚠️ Insufficient Memory Detected</h3>
+        <p>The AI model requires at least <b>4-6 GB of available RAM</b> to load and run.</p>
+        <p><b>Your options:</b></p>
+        <ul>
+            <li><b>Free up RAM:</b> Close other applications to make memory available, then try again.</li>
+            <li><b>Use Extractive Mode:</b> Switch to extractive summarization which doesn't require the AI model and works with less memory.</li>
+        </ul>
+        <p>Would you like to switch to <b>Extractive Mode</b> now?</p>
+        """
+        
+        msg_box.setText(message)
+        
+        # Add buttons
+        switch_button = msg_box.addButton("Switch to Extractive Mode", QMessageBox.ButtonRole.AcceptRole)
+        retry_button = msg_box.addButton("Retry After Freeing RAM", QMessageBox.ButtonRole.RejectRole)
+        cancel_button = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        
+        # Set default button
+        msg_box.setDefaultButton(switch_button)
+        
+        # Show dialog
+        result = msg_box.exec()
+        
+        # Handle user choice
+        if msg_box.clickedButton() == switch_button:
+            # Switch to extractive mode
+            if self.mode_selector:
+                self.mode_selector.set_mode(SummarizationMode.EXTRACTIVE)
+                self._update_status_bar("Switched to Extractive Mode - Ready to summarize")
+                # Optionally auto-trigger summarization if file is selected
+                if self.current_file and self.summarize_button.isEnabled():
+                    QMessageBox.information(
+                        self,
+                        "Mode Switched",
+                        "Switched to Extractive Mode.\n\nClick 'Generate Summary' to proceed with extractive summarization."
+                    )
+        elif msg_box.clickedButton() == retry_button:
+            # User wants to retry - just close dialog, they can try again after freeing RAM
+            self._update_status_bar("Please free up RAM and try again")
+        else:
+            # Cancel - just close
+            pass
     
     def _disable_all_components(self):
         """Disable all interactive UI components during processing."""
