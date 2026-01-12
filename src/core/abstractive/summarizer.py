@@ -969,26 +969,33 @@ class AbstractiveSummarizer:
             length_penalty = Config.get_length_penalty_for_preset(preset)
         
         # Adjust parameters based on preset - balanced for quality
+        # SWAPPED BACK: short uses brief parameters (bullets), medium uses comprehensive parameters (regular summary)
         if preset == "long":
             max_length = max_length or 300  # Comprehensive length for long summaries
             min_length = min_length or 120  # Ensure substantial content
         elif preset == "medium":
-            max_length = max_length or 200  # Balanced length for medium summaries
-            min_length = min_length or 80   # Ensure adequate content
+            # Medium now uses comprehensive parameters (regular summary format)
+            max_length = max_length or 280  # Comprehensive medium summaries
+            min_length = min_length or 120   # Substantial content coverage
         else:  # short
+            # Short now uses brief parameters (brief + bullets format)
             max_length = max_length or 90
             min_length = min_length or 35
         
         logger.info(f"Summarizing with preset='{preset}', max={max_length}, min={min_length}, penalty={length_penalty}")
         
         # SIMPLE CHUNKING FOR CPU
-        if not chunk or len(cleaned_text) < 2000:
-            # Direct summarization for short texts
+        # For medium preset, use chunking even for shorter texts to get better coverage
+        chunk_threshold = 1500 if preset == "medium" else 2000
+        if not chunk or len(cleaned_text) < chunk_threshold:
+            # Direct summarization for very short texts
+            # Use lower penalty for medium preset to encourage longer output
+            direct_penalty = length_penalty * 0.85 if preset == "medium" else length_penalty
             summary = self._summarize_chunk(
                 cleaned_text,
                 max_length,
                 min_length,
-                length_penalty,
+                direct_penalty,
                 preset
             )
         else:
@@ -999,10 +1006,12 @@ class AbstractiveSummarizer:
                 chunk_overlap = 100     # More overlap for continuity
                 max_chunks = 25         # Allow more chunks for comprehensive coverage
             elif preset == "medium":
-                chunk_max_tokens = 370  # Smaller chunks than long
-                chunk_overlap = 85      # Good overlap for continuity
-                max_chunks = 18         # Fewer chunks than long for shorter output
+                # Medium now uses comprehensive chunk settings (for regular summary)
+                chunk_max_tokens = 400  # Better context (same as long)
+                chunk_overlap = 100     # Better continuity (same as long)
+                max_chunks = 18         # More comprehensive coverage
             else:  # short
+                # Short now uses brief chunk settings (for brief + bullets)
                 chunk_max_tokens = 350
                 chunk_overlap = 75
                 max_chunks = 15
@@ -1030,17 +1039,21 @@ class AbstractiveSummarizer:
                     chunk_max = 150  # Longer per-chunk summaries for comprehensive output
                     chunk_min = 60   # Ensure substantial content per chunk
                 elif preset == "medium":
-                    chunk_max = 110  # Balanced per-chunk summaries for medium output (shorter than long)
-                    chunk_min = 45   # Ensure adequate content per chunk
+                    # Medium now uses comprehensive per-chunk settings
+                    chunk_max = 130  # Much more comprehensive per-chunk summaries
+                    chunk_min = 55   # Substantial content per chunk
                 else:  # short
+                    # Short now uses brief per-chunk settings
                     chunk_max = 80
                     chunk_min = 30
                 
+                # Use lower penalty for medium preset chunks to encourage longer output
+                chunk_penalty = length_penalty * (0.8 if preset == "medium" else 0.9)
                 chunk_summary = self._summarize_chunk(
                     chunk_text,
                     chunk_max,
                     chunk_min,
-                    length_penalty * 0.9,  # Slightly lower penalty for chunks
+                    chunk_penalty,  # Lower penalty for short to encourage more content
                     preset
                 )
                 
@@ -1083,41 +1096,16 @@ class AbstractiveSummarizer:
                     logger.info("Using combined summaries directly for 'long' preset (no consolidation)")
                     summary = combined
                 elif preset == "medium":
-                    # For medium preset, use light consolidation to keep it shorter than long
-                    # but still preserve more content than aggressive consolidation
+                    # Medium now uses comprehensive logic - skip consolidation entirely to preserve maximum content
                     logger.info("Deduplicating combined summaries for 'medium' preset")
                     combined = self._deduplicate_sentences(combined)
                     
-                    min_chunks_for_consolidation = 3
-                    if len(combined) > 400 and len(summaries) >= min_chunks_for_consolidation:
-                        logger.info("Attempting light consolidation for 'medium' preset...")
-                        # Use higher minimum (80% of min_length) to preserve more content
-                        final_min_length = int(min_length * 0.8)  # 80% of min_length = 64 tokens
-                        final_summary = self._summarize_chunk(
-                            combined,
-                            max_length,  # Use max_length = 200
-                            final_min_length,
-                            length_penalty,
-                            preset
-                        )
-                        
-                        # Accept final summary if it's reasonable and shorter than combined
-                        if final_summary and not self._is_garbage(final_summary) and len(final_summary) > 100:
-                            # Only use consolidated if it's meaningfully shorter (at least 20% reduction)
-                            if len(final_summary) < len(combined) * 0.8:
-                                logger.info(f"  ✓ Light consolidation successful: {len(final_summary)} chars (reduced from {len(combined)})")
-                                summary = final_summary
-                            else:
-                                logger.info(f"  Light consolidation didn't reduce enough, using combined: {len(combined)} chars")
-                                summary = combined
-                        else:
-                            logger.info("  Light consolidation rejected, using combined summaries")
-                            summary = combined
-                    else:
-                        logger.info(f"Using combined summaries directly for 'medium' (length: {len(combined)}, chunks: {len(summaries)})")
-                        summary = combined
+                    # Skip consolidation for medium preset to preserve all content from chunks
+                    # Only deduplicate to remove exact duplicates
+                    logger.info(f"Using deduplicated summaries directly for 'medium' (no consolidation): {len(combined)} chars from {len(summaries)} chunks")
+                    summary = combined
                 else:
-                    # For short preset, skip consolidation - we'll format it as brief + bullets
+                    # Short now uses brief logic - skip consolidation, format as brief + bullets
                     logger.info("Deduplicating combined summaries for 'short' preset")
                     combined = self._deduplicate_sentences(combined)
                     logger.info(f"Using combined summaries for 'short' preset (will format as brief + bullets): {len(combined)} chars")
@@ -1289,7 +1277,31 @@ class AbstractiveSummarizer:
                     logger.info(f"✓ SUCCESS: Formatted short summary: {len(formatted_summary)} chars ({len(brief_overview)} overview + {len(unique_points)} points)")
                     return formatted_summary
                 
-                # For other presets (medium, long), return cleaned summary as-is
+                # For medium preset, ensure it's between short and long
+                if preset == "medium":
+                    # Limit medium output to be clearly shorter than long
+                    # Significantly increased for comprehensive coverage of longer documents (8+ pages)
+                    max_medium_length = 2500  # Increased for much more comprehensive medium summaries
+                    if len(cleaned_summary) > max_medium_length:
+                        logger.info(f"Medium summary too long ({len(cleaned_summary)} chars), truncating to {max_medium_length}...")
+                        # Truncate at sentence boundary
+                        sentences = re.split(r'([.!?]+)', cleaned_summary)
+                        truncated = ""
+                        for i in range(0, len(sentences), 2):
+                            if i + 1 < len(sentences):
+                                candidate = truncated + sentences[i] + sentences[i+1]
+                                if len(candidate) <= max_medium_length:
+                                    truncated = candidate
+                                else:
+                                    break
+                        if truncated:
+                            cleaned_summary = truncated.strip()
+                            logger.info(f"Truncated medium summary to {len(cleaned_summary)} chars")
+                    
+                    logger.info(f"✓ SUCCESS: Medium summary: {len(cleaned_summary)} chars, {len(cleaned_summary.split())} words")
+                    return cleaned_summary
+                
+                # For long preset, return as-is (no length limit)
                 logger.info(f"✓ SUCCESS: Final summary: {len(cleaned_summary)} chars, {len(cleaned_summary.split())} words")
                 return cleaned_summary
             else:

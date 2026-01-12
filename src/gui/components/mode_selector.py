@@ -43,7 +43,7 @@ class ModeSelectorWidget(QWidget):
         """Initialize mode selector widget with default settings."""
         super().__init__(parent)
         self.current_mode = SummarizationMode.EXTRACTIVE
-        self.current_length_preset = "medium"  # Default to medium length
+        self.current_length_preset = "short"  # Default to short length
         self._setup_ui()
     
     def _setup_ui(self):
@@ -196,7 +196,7 @@ class ModeSelectorWidget(QWidget):
         
         self.length_combo = QComboBox()
         self.length_combo.addItems(["Short", "Medium", "Long"])
-        self.length_combo.setCurrentText("Medium")  # Default to medium
+        self.length_combo.setCurrentText("Short")  # Default to short
         self.length_combo.currentTextChanged.connect(self._on_length_changed)
         self.length_combo.setEnabled(False)  # Disabled until abstractive is selected
         self.length_combo.setFixedHeight(34)  # Increased height for visibility
