@@ -48,7 +48,7 @@ class SummarizationWorker(QThread):
     """
     
     progress = pyqtSignal(int, str)
-    finished = pyqtSignal(str)
+    finished = pyqtSignal(str, str)
     error = pyqtSignal(str)
     
     def __init__(
@@ -167,7 +167,7 @@ class SummarizationWorker(QThread):
                     # Summary complete
                     self.progress.emit(95, "Summary generated successfully")
                     self.progress.emit(100, "Summary complete!")
-                    self.finished.emit(summary)
+                    self.finished.emit(summary, "")
                     
                 except Exception as e:
                     logger.error(f"Extractive summarization failed: {str(e)}", exc_info=True)
@@ -234,7 +234,7 @@ class SummarizationWorker(QThread):
                     
                     # If we got here, summarization was successful
                     self.progress.emit(100, "Summary complete!")
-                    self.finished.emit(summary)
+                    self.finished.emit(summary, preset)
                     
                 except Exception as e:
                     logger.error(f"Abstractive summarization failed: {str(e)}", exc_info=True)
@@ -805,7 +805,7 @@ class MainWindow(QMainWindow):
             """)
         self.statusBar().showMessage(message)
     
-    def _on_summarization_finished(self, summary: str):
+    def _on_summarization_finished(self, summary: str, length_preset: str):
         """Handle summarization completion."""
         # Stop loading spinner
         self.loading_spinner.stop()
@@ -833,7 +833,8 @@ class MainWindow(QMainWindow):
         
         # Pass the mode to summary display
         mode_str = "extractive" if self.current_mode == SummarizationMode.EXTRACTIVE else "abstractive"
-        self.summary_display.set_summary(summary, mode_str)
+        preset_for_display = length_preset if self.current_mode == SummarizationMode.ABSTRACTIVE else ""
+        self.summary_display.set_summary(summary, mode_str, preset_for_display)
         
         # Re-enable all components
         self._enable_all_components()

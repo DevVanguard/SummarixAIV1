@@ -43,6 +43,7 @@ class SummaryDisplayWidget(QWidget):
         super().__init__(parent)
         self.summary_text = ""
         self.summarization_mode = ""  # Store the mode used for summarization
+        self.length_preset = ""  # Store length preset for abstractive mode
         self._setup_ui()
     
     def _setup_ui(self):
@@ -186,7 +187,7 @@ class SummaryDisplayWidget(QWidget):
         self.text_display.setMinimumHeight(200)
         self.text_display.setMinimumWidth(400)  # Ensure adequate width for text flow
     
-    def set_summary(self, text: str, mode: str = ""):
+    def set_summary(self, text: str, mode: str = "", length_preset: str = ""):
         """
         Set the summary text to display.
         
@@ -199,6 +200,7 @@ class SummaryDisplayWidget(QWidget):
         
         self.summary_text = cleaned_text
         self.summarization_mode = mode
+        self.length_preset = (length_preset or "").lower()
         self.text_display.setPlainText(cleaned_text)
         self._update_mode_label()
         
@@ -273,6 +275,7 @@ class SummaryDisplayWidget(QWidget):
         """Clear the summary display."""
         self.summary_text = ""
         self.summarization_mode = ""
+        self.length_preset = ""
         self.text_display.clear()
         self._update_mode_label()
         
@@ -299,7 +302,10 @@ class SummaryDisplayWidget(QWidget):
             if self.summarization_mode.lower() == "extractive":
                 self.mode_label.setText("⚡ Extractive Mode")
             else:
-                self.mode_label.setText("🤖 Abstractive Mode")
+                preset_suffix = ""
+                if self.length_preset:
+                    preset_suffix = f" • {self.length_preset.title()} preset"
+                self.mode_label.setText(f"🤖 Abstractive Mode{preset_suffix}")
             self.mode_label.show()
     
     def _copy_to_clipboard(self):
